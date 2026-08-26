@@ -391,6 +391,115 @@ td.mono{font-family:var(--mono); font-size:12px;}
 .anomaly-list{margin-top:10px; font-size:11.5px; color:var(--text-dim);}
 .anomaly-list div{padding:4px 0; border-bottom:1px solid var(--border-soft);}
 
+/* ============================================================
+   RESPONSIVE OVERHAUL — mobile / tablet (portrait+landscape) / desktop
+   ============================================================ */
+
+/* hamburger (hidden on desktop) */
+.hamburger{
+  display:none; width:34px; height:34px; border-radius:8px; border:1px solid var(--border);
+  background:var(--surface2); color:var(--text); align-items:center; justify-content:center;
+  font-size:16px; cursor:pointer; flex-shrink:0;
+}
+.nav-overlay{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:29;
+}
+.nav-overlay.show{display:block;}
+
+@media (max-width: 1024px){
+  .hamburger{display:flex;}
+  .sidebar{
+    position:fixed; top:0; left:0; height:100vh; z-index:30;
+    transform:translateX(-100%); transition:transform .22s ease; box-shadow:0 0 40px rgba(0,0,0,0.5);
+  }
+  .sidebar.open{transform:translateX(0);}
+  .identity-bar{padding:8px 14px; flex-wrap:wrap; row-gap:6px;}
+  .identity-bar .rid-pill{margin-left:0; width:100%; justify-content:space-between;}
+  .topbar{padding:12px 14px;}
+  .content{padding:16px 14px 50px 14px;}
+  .topbar-row{gap:8px;}
+  .page-title{width:100%; font-size:17px;}
+  .filter{flex:1 1 auto; min-width:0;}
+  .filter select{min-width:0; width:100%;}
+}
+
+@media (max-width: 700px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .kpi .value{font-size:21px;}
+  .round-card{flex-wrap:wrap;}
+  .round-card .rid{width:auto;}
+  .round-card .prog{max-width:none; width:100%; order:5;}
+  .round-card .spacer{display:none;}
+  .bucket-row{grid-template-columns:repeat(2,1fr);}
+  .new-round-form{grid-template-columns:1fr 1fr;}
+  .mode-choice{flex-direction:column;}
+  .donut-wrap{flex-direction:column; align-items:flex-start;}
+}
+
+@media (max-width: 420px){
+  .kpi-grid{grid-template-columns:1fr 1fr;}
+  .kpi{padding:12px 14px;}
+  .brand{padding:16px 14px 12px 14px;}
+}
+
+/* landscape phones: reclaim vertical space */
+@media (max-height: 460px) and (orientation:landscape){
+  .brand{padding:12px 16px;}
+  .nav{padding:8px 8px;}
+  .nav-item{padding:7px 10px;}
+  .sidebar-foot{display:none;}
+}
+
+/* ---- mobile count screen v2: real responsive grid, no fake phone bezel ---- */
+.count-toolbar{
+  display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;
+  position:sticky; top:0; background:var(--bg); padding:4px 0 8px 0; z-index:2;
+}
+.count-toolbar input{
+  flex:1; min-width:220px; background:var(--surface2); border:1px solid var(--border); border-radius:9px;
+  padding:11px 14px; color:var(--text); font-size:14px; font-family:var(--sans);
+}
+.count-toolbar input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+.count-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px;
+}
+.count-item{
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;
+  display:flex; flex-direction:column;
+}
+.count-item .code{font-family:var(--mono); font-size:11px; color:var(--amber);}
+.count-item .name{font-weight:700; font-size:14.5px; margin-top:4px; line-height:1.35; min-height:2.7em;}
+.count-item .meta{display:flex; gap:16px; margin-top:10px; font-size:11.5px; color:var(--text-dim); flex-wrap:wrap;}
+.count-item .meta > div span{display:block; color:var(--text-faint); font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px;}
+.count-item .qty-input{margin-top:14px;}
+.count-item .qty-input label{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em;}
+.count-item .qty-row{display:flex; align-items:center; gap:8px; margin-top:6px;}
+.count-item .save-row{margin-top:12px;}
+.count-item .save-row .save-btn{
+  width:100%; background:var(--amber); color:#1A1300; border:none; padding:11px; border-radius:9px; font-weight:700; font-size:13.5px; cursor:pointer;
+}
+.count-item .save-row .save-btn:disabled{opacity:.6;}
+
+/* ---- v4: location/LOT mismatch exception report ---- */
+.exc-toggle{
+  margin-top:10px; background:none; border:1px dashed var(--amber-dim); color:var(--amber);
+  padding:8px 10px; border-radius:8px; font-size:11.5px; cursor:pointer; width:100%; text-align:center;
+  font-family:var(--sans);
+}
+.exc-toggle:hover{background:#2E2410;}
+.exc-form{
+  margin-top:10px; padding:12px; background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.exc-type-row{display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-dim);}
+.exc-type-row label{display:flex; align-items:center; gap:6px;}
+.exc-field label{font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:4px;}
+.exc-field select, .exc-field input{
+  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:8px 10px;
+  color:var(--text); font-size:12.5px; font-family:var(--sans);
+}
+.exc-field select:focus, .exc-field input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+
 </style>
 </head>
 <body>
@@ -399,7 +508,7 @@ td.mono{font-family:var(--mono); font-size:12px;}
 <div class="identity-bar" id="identityBar"></div>
 <div class="app">
 
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="mark">STOCKCOUNT / WMS</div>
       <div class="name">นับสต็อกสิ้นเดือน</div>
@@ -412,6 +521,7 @@ td.mono{font-family:var(--mono); font-size:12px;}
   <div class="main">
     <div class="topbar">
       <div class="topbar-row">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
         <div class="page-title" id="pageTitle">Dashboard<span class="sub" id="pageSub"></span></div>
         <div class="filter">
           <label>คลัง / Location</label>
@@ -435,6 +545,7 @@ td.mono{font-family:var(--mono); font-size:12px;}
     <div class="content" id="content"></div>
   </div>
 </div>
+<div class="nav-overlay" id="navOverlay"></div>
 
 <div class="toast-stack" id="toastStack"></div>
 
@@ -474,6 +585,7 @@ let BASE = null;          // master stock balance (shared, seeded once)
 let ROUNDS = [];          // list of round meta
 let ACTIVE_ROUND = null;  // currently selected round id
 let DETAIL_CACHE = {};    // roundId -> detail array (loaded lazily)
+let EXC_CACHE = {};       // roundId -> location/LOT mismatch exception reports
 let AUDIT = [];
 
 let state = {tab:'dashboard', location:'', category:'', status:''};
@@ -556,6 +668,7 @@ async function init(){
 
   populateFilters();
   renderIdentityBar();
+  setupDrawer();
   document.getElementById('loadingScreen').style.display='none';
   render();
 }
@@ -641,11 +754,78 @@ async function setReason(roundId, itemId, reason){
   await logAudit(`ระบุเหตุผลผลต่าง ${item.code}`, old||'-', reason);
 }
 
+// ---------------- location / LOT mismatch exceptions ----------------
+function daysBetweenISO(isoStr){
+  if(!isoStr) return null;
+  return Math.round((new Date(isoStr) - new Date())/86400000);
+}
+async function loadExceptions(roundId){
+  if(EXC_CACHE[roundId]) return EXC_CACHE[roundId];
+  const d = await sGet('exceptions:'+roundId, true) || [];
+  EXC_CACHE[roundId] = d;
+  return d;
+}
+async function saveExceptions(roundId){ await sSet('exceptions:'+roundId, EXC_CACHE[roundId], true); }
+
+async function reportException(roundId, payload){
+  const list = await loadExceptions(roundId);
+  const rec = {
+    id: Math.random().toString(36).slice(2,9),
+    ...payload,
+    reportedBy: currentUser, reportedAt: nowStr(),
+    status: 'pending', resolution: ''
+  };
+  list.unshift(rec);
+  await saveExceptions(roundId);
+  await logAudit(
+    `แจ้งพบผิด${payload.type==='location_mismatch'?'ตำแหน่ง':'LOT'} ${payload.code}`,
+    '-', `${payload.foundLoc||''} ${payload.foundExp||''} จำนวน=${payload.foundQty}`
+  );
+  return rec;
+}
+
+async function resolveException(roundId, excId, action, note){
+  const list = await loadExceptions(roundId);
+  const exc = list.find(e=>e.id===excId);
+  if(!exc) return;
+  exc.status = 'resolved';
+  exc.resolution = action + (note ? ' — '+note : '');
+  exc.resolvedBy = currentUser; exc.resolvedAt = nowStr();
+  await saveExceptions(roundId);
+
+  if(action==='transfer_location'){
+    const rec = BASE.find(i=> i.c===exc.code && i.exp===exc.origExp && i.loc===exc.origLoc);
+    if(rec){
+      const oldLoc = rec.loc;
+      rec.loc = exc.foundLoc;
+      await sSet('seed_v1', BASE, true);
+      await logAudit(`แก้ไขตำแหน่ง Stock Balance ${exc.code}`, oldLoc, exc.foundLoc);
+    }
+  } else if(action==='add_new_lot'){
+    const newItem = {
+      c: exc.code, n: exc.name, cat: exc.cat||'', u: exc.unit, loc: exc.foundLoc||exc.origLoc,
+      exp: exc.foundExp||null, et: !!exc.foundExp, dte: exc.foundExp ? daysBetweenISO(exc.foundExp) : null,
+      qty: exc.foundQty, uc: 0, sv: 0,
+      lmd: todayISO(), lmt: 'ปรับปรุง', dsm: 0
+    };
+    BASE.push(newItem);
+    await sSet('seed_v1', BASE, true);
+    await logAudit(`เพิ่มสต็อกใหม่จาก Unknown LOT ${exc.code}`, '-', `${exc.foundExp||'-'} จำนวน=${exc.foundQty}`);
+  }
+  await logAudit(`ดำเนินการรายงานผิดปกติ (${action}) ${exc.code}`, 'pending', 'resolved');
+}
+
 async function approveRound(roundId){
   const detail = await loadDetail(roundId);
   const unresolved = detail.filter(i=>i.status==='mismatch' && !i.reason);
   if(unresolved.length>0){
     toast(`ยังมี ${unresolved.length} รายการที่ไม่ตรง ยังไม่ได้ระบุเหตุผล`, 'error');
+    return false;
+  }
+  const exceptions = await loadExceptions(roundId);
+  const pendingExc = exceptions.filter(e=>e.status==='pending');
+  if(pendingExc.length>0){
+    toast(`ยังมีรายงานผิดตำแหน่ง/ผิด LOT ที่รอดำเนินการ ${pendingExc.length} รายการ`, 'error');
     return false;
   }
   await setRoundStatus(roundId, 'approved');
@@ -743,7 +923,7 @@ function kpiCard(label, value, unit, accent, extra){
 }
 function progressBar(p){ const w=el('div','kpi-bar'); const f=el('div','kpi-bar-fill'); f.style.width=Math.min(100,p)+'%'; w.appendChild(f); return w; }
 function statusBadge(kind){
-  const map = {match:['badge-green','ตรง'],matched:['badge-green','ตรง'], mismatch:['badge-red','ไม่ตรง'], pending:['badge-amber','รอตรวจสอบ'], counted:['badge-blue','นับแล้ว'], uncounted:['badge-gray','ยังไม่ได้นับ']};
+  const map = {match:['badge-green','ตรง'],matched:['badge-green','ตรง'], mismatch:['badge-red','ไม่ตรง'], pending:['badge-amber','รอตรวจสอบ'], counted:['badge-blue','นับแล้ว'], uncounted:['badge-gray','ยังไม่ได้นับ'], resolved:['badge-green','ดำเนินการแล้ว']};
   const [cls,label]=map[kind]||['badge-gray',kind];
   return el('span','badge '+cls, `<span class="dot"></span>${label}`);
 }
@@ -990,28 +1170,13 @@ function renderCounts(container){
 async function renderMobile(container){
   if(!ACTIVE_ROUND){ container.appendChild(emptyState('ยังไม่มีรอบนับ','ไปสร้างรอบนับก่อนที่แท็บ "รอบการนับ"')); return; }
   const round = ROUNDS.find(r=>r.id===ACTIVE_ROUND);
-  container.appendChild(el('div','section-title',`นับสต็อก — รอบ ${round.id}<div class="line"></div>`));
+  container.appendChild(el('div','section-title',`นับสต็อก — รอบ ${round.id} <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">${round.location} · ไม่แสดง System Qty</span><div class="line"></div>`));
 
-  const stage = el('div','phone-stage');
-  const phone = el('div','phone');
-  const screen = el('div','phone-screen');
-  screen.innerHTML = `
-    <div class="phone-bar"><span class="back">‹</span><span class="t">นับสต็อก</span><span class="loc">${round.location}</span></div>
-    <div class="phone-search"><input id="mobileSearch" placeholder="ค้นหา Product Code / ชื่อ / LOT..."></div>
-    <div id="mobileResults" style="flex:1; overflow-y:auto; padding-bottom:10px;"></div>
-  `;
-  phone.appendChild(screen);
-  stage.appendChild(phone);
-
-  const caption = el('div','phone-caption');
-  caption.innerHTML = `<h4>วิธีใช้งาน</h4><ul>
-    <li>พิมพ์ค้นหา Product Code, ชื่อสินค้า หรือ Location</li>
-    <li>แตะรายการเพื่อกรอกจำนวนที่นับจริง — ไม่แสดง System Qty</li>
-    <li>กด "บันทึก" เพื่อเก็บผลจริงลง storage ทันที</li>
-    <li>ถ้านับซ้ำรายการเดิม ระบบจะบันทึกเป็น Count 2 และใช้เป็นยอด Final</li>
-  </ul>`;
-  stage.appendChild(caption);
-  container.appendChild(stage);
+  const toolbar = el('div','count-toolbar');
+  toolbar.innerHTML = `<input id="mobileSearch" placeholder="ค้นหา Product Code / ชื่อสินค้า / LOT / Location...">`;
+  container.appendChild(toolbar);
+  const resultsBox = el('div','count-grid'); resultsBox.id='mobileResults';
+  container.appendChild(resultsBox);
 
   const detail = await loadDetail(ACTIVE_ROUND);
   const resultsEl = () => document.getElementById('mobileResults');
@@ -1022,13 +1187,13 @@ async function renderMobile(container){
     let list = filterDetail(detail);
     if(query){
       const q = query.toLowerCase();
-      list = list.filter(i=> i.code.toLowerCase().includes(q) || i.name.toLowerCase().includes(q) || i.loc.toLowerCase().includes(q));
+      list = list.filter(i=> i.code.toLowerCase().includes(q) || i.name.toLowerCase().includes(q) || i.loc.toLowerCase().includes(q) || (i.exp||'').includes(q));
     }
-    list = list.slice(0,25);
-    if(list.length===0){ box.appendChild(el('div','empty-state','ไม่พบรายการ')); return; }
+    const total = list.length;
+    list = list.slice(0,40);
+    if(list.length===0){ box.appendChild(emptyState('ไม่พบรายการ','ลองค้นหาด้วยคำอื่น หรือเปลี่ยนตัวกรองด้านบน')); return; }
     list.forEach(item=>{
-      const card = el('div','count-card');
-      card.style.margin='0 16px 12px 16px';
+      const card = el('div','count-item');
       card.innerHTML = `
         <div class="code">${item.code}</div>
         <div class="name">${item.name}</div>
@@ -1037,19 +1202,47 @@ async function renderMobile(container){
           <div><span>หน่วย</span>${item.unit}</div>
           <div><span>Location</span>${item.loc}</div>
         </div>
-        ${item.status!=='uncounted' ? `<div class="recount-flag">${item.status==='matched'?'✅ นับแล้ว ตรงกับระบบ':'⚠️ นับแล้ว ไม่ตรง — นับซ้ำได้'}</div>` : ''}
+        ${item.status!=='uncounted' ? `<div class="recount-flag">${item.status==='matched'?'✅ นับแล้ว ตรงกับระบบ':'⚠️ นับแล้ว ไม่ตรง — แตะเพื่อนับซ้ำ'}</div>` : ''}
         <div class="qty-input">
           <label>จำนวนที่นับจริง (Actual Qty)</label>
           <div class="qty-row">
-            <button class="qty-btn" data-act="minus">−</button>
-            <input class="qty-field" type="number" value="${item.finalQty ?? 0}">
-            <button class="qty-btn" data-act="plus">+</button>
+            <button class="qty-btn" data-act="minus" type="button">−</button>
+            <input class="qty-field" type="number" inputmode="decimal" value="${item.finalQty ?? 0}">
+            <button class="qty-btn" data-act="plus" type="button">+</button>
           </div>
+        </div>
+        <div class="save-row"></div>
+        <button class="exc-toggle" type="button">⚠️ พบผิดตำแหน่ง / ผิด LOT</button>
+        <div class="exc-form" style="display:none;">
+          <div class="exc-type-row">
+            <label><input type="radio" name="excType-${item.id}" value="location_mismatch" checked> ผิด Location (LOT/วันหมดอายุเดิม)</label>
+            <label><input type="radio" name="excType-${item.id}" value="unknown_lot"> ผิด LOT (วันหมดอายุไม่ตรงกับที่ระบบระบุ)</label>
+          </div>
+          <div class="exc-field loc-field">
+            <label>Location ที่เจอจริง</label>
+            <select class="exc-loc"></select>
+          </div>
+          <div class="exc-field lot-field" style="display:none;">
+            <label>วันหมดอายุที่เจอจริง (LOT)</label>
+            <input type="date" class="exc-lot-date">
+          </div>
+          <div class="exc-field">
+            <label>จำนวนที่เจอ ณ ตำแหน่ง/ล็อตใหม่นี้</label>
+            <input type="number" class="exc-qty" value="0" inputmode="decimal">
+          </div>
+          <div class="exc-field">
+            <label>จำนวนที่ยังเหลือ ณ ตำแหน่ง/ล็อตเดิม (ถ้ามี)</label>
+            <input type="number" class="exc-remain" value="0" inputmode="decimal">
+          </div>
+          <div class="exc-field">
+            <label>หมายเหตุ (ถ้ามี)</label>
+            <input type="text" class="exc-note" placeholder="เช่น เจอวางปนกับสินค้าอื่น">
+          </div>
+          <button class="btn btn-primary exc-submit" type="button">บันทึกรายงานความผิดปกติ</button>
         </div>
       `;
       const btnSave = el('button','save-btn', item.status==='uncounted' ? 'บันทึกจำนวนที่นับ' : 'บันทึกการนับซ้ำ');
-      btnSave.style.margin='12px 0 0 0';
-      card.appendChild(btnSave);
+      card.querySelector('.save-row').appendChild(btnSave);
       const field = card.querySelector('.qty-field');
       card.querySelector('[data-act=minus]').onclick = ()=>{ field.value = Math.max(0,(+field.value||0)-1); };
       card.querySelector('[data-act=plus]').onclick = ()=>{ field.value = (+field.value||0)+1; };
@@ -1060,8 +1253,45 @@ async function renderMobile(container){
         toast(`บันทึก ${item.code} = ${num(qty)} ${item.unit}`, 'success');
         renderList(document.getElementById('mobileSearch').value);
       };
+
+      // exception report wiring
+      const excToggle = card.querySelector('.exc-toggle');
+      const excForm = card.querySelector('.exc-form');
+      excToggle.onclick = ()=>{ excForm.style.display = excForm.style.display==='none' ? 'flex' : 'none'; };
+      const locSel = card.querySelector('.exc-loc');
+      [...new Set(BASE.map(i=>i.loc))].sort().forEach(l=>{ const o=document.createElement('option'); o.value=l; o.textContent=l; locSel.appendChild(o); });
+      const locField = card.querySelector('.loc-field');
+      const lotField = card.querySelector('.lot-field');
+      card.querySelectorAll(`input[name="excType-${item.id}"]`).forEach(r=>{
+        r.onchange = ()=>{
+          if(r.value==='location_mismatch' && r.checked){ locField.style.display='block'; lotField.style.display='none'; }
+          if(r.value==='unknown_lot' && r.checked){ locField.style.display='none'; lotField.style.display='block'; }
+        };
+      });
+      card.querySelector('.exc-submit').onclick = async ()=>{
+        const type = card.querySelector(`input[name="excType-${item.id}"]:checked`).value;
+        const foundLoc = type==='location_mismatch' ? locSel.value : item.loc;
+        const foundExp = type==='unknown_lot' ? card.querySelector('.exc-lot-date').value : item.exp;
+        const foundQty = +card.querySelector('.exc-qty').value || 0;
+        const remainQty = +card.querySelector('.exc-remain').value || 0;
+        const note = card.querySelector('.exc-note').value.trim();
+        if(type==='location_mismatch' && !foundLoc){ toast('กรุณาเลือก Location ที่เจอจริง','error'); return; }
+        if(type==='unknown_lot' && !foundExp){ toast('กรุณาระบุวันหมดอายุที่เจอจริง','error'); return; }
+        const subBtn = card.querySelector('.exc-submit');
+        subBtn.disabled = true; subBtn.textContent = 'กำลังบันทึก...';
+        await submitCount(ACTIVE_ROUND, item.id, remainQty);
+        await reportException(ACTIVE_ROUND, {
+          code:item.code, name:item.name, unit:item.unit, cat:item.cat,
+          origLoc:item.loc, origExp:item.exp,
+          type, foundLoc, foundExp, foundQty, note
+        });
+        toast('บันทึกรายงานความผิดปกติแล้ว — รอหัวหน้างานตรวจสอบ', 'success');
+        renderList(document.getElementById('mobileSearch').value);
+      };
+
       box.appendChild(card);
     });
+    if(total>40) box.appendChild(el('div','footer-note',`แสดง 40 จาก ${total} รายการ — พิมพ์ค้นหาให้เจาะจงขึ้นเพื่อดูรายการที่ต้องการ`));
   }
   renderList('');
   setTimeout(()=>{
@@ -1083,11 +1313,53 @@ async function renderReview(container){
   container.querySelector('.section-title span').appendChild(statusBadge2(round.status));
 
   const grid = el('div','kpi-grid');
+  const exceptions = await loadExceptions(ACTIVE_ROUND);
+  const pendingExc = exceptions.filter(e=>e.status==='pending');
   grid.appendChild(kpiCard('รายการที่นับแล้ว', num(counted.length)));
   grid.appendChild(kpiCard('รอตรวจสอบ (ไม่ตรง)', num(mismatched.length),'','amber'));
   grid.appendChild(kpiCard('มูลค่าที่ต้องตรวจสอบ', money(mismatched.reduce((a,i)=>a+Math.abs(i.diff*i.unitCost),0)),'','red'));
   grid.appendChild(kpiCard('ยังไม่ระบุเหตุผล', num(mismatched.filter(i=>!i.reason).length),'','red'));
+  grid.appendChild(kpiCard('รายงานผิดตำแหน่ง/ผิด LOT รอดำเนินการ', num(pendingExc.length),'',pendingExc.length?'red':''));
   container.appendChild(grid);
+
+  container.appendChild(el('div','section-title',`รายงานความผิดปกติ (Location / LOT Mismatch) <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">${exceptions.length} รายการทั้งหมด</span><div class="line"></div>`));
+  if(exceptions.length===0){
+    container.appendChild(el('div','footer-note','ยังไม่มีรายงานพบสินค้าผิดตำแหน่ง/ผิด LOT ในรอบนี้'));
+  } else {
+    const ewrap = el('div','table-wrap'); const et2 = el('table');
+    et2.innerHTML = `<thead><tr><th>ประเภท</th><th>Product</th><th>ชื่อสินค้า</th><th>ตำแหน่ง/LOT เดิม</th><th>ที่เจอจริง</th><th class="num">จำนวน</th><th>แจ้งโดย</th><th>สถานะ</th><th>การดำเนินการ</th></tr></thead>`;
+    const etb = el('tbody');
+    exceptions.forEach(exc=>{
+      const tr = el('tr');
+      const typeLabel = exc.type==='location_mismatch' ? '📍 ผิดตำแหน่ง' : '🏷️ ผิด LOT';
+      const origStr = `${exc.origLoc}${exc.origExp?' / '+exc.origExp:''}`;
+      const foundStr = exc.type==='location_mismatch' ? exc.foundLoc : `${exc.foundLoc} / ${exc.foundExp||'-'}`;
+      tr.innerHTML = `<td class="mini">${typeLabel}</td><td class="mono">${exc.code}</td><td class="prodname" title="${exc.name}">${exc.name}</td>
+        <td class="mono">${origStr}</td><td class="mono">${foundStr}</td><td class="num mono">${num(exc.foundQty)}</td>
+        <td class="mini">${exc.reportedBy}<br><span style="color:var(--text-faint)">${exc.reportedAt}</span></td><td></td><td></td>`;
+      if(exc.status==='pending'){
+        tr.children[7].appendChild(statusBadge('pending'));
+        const actions = el('div','',''); actions.style.cssText='display:flex; gap:6px; flex-wrap:wrap;';
+        if(exc.type==='location_mismatch'){
+          const b = el('button','btn','ยืนยันย้ายตำแหน่ง');
+          b.onclick = async ()=>{ b.disabled=true; await resolveException(ACTIVE_ROUND, exc.id, 'transfer_location'); toast('อัปเดตตำแหน่งใน Stock Balance แล้ว','success'); render(); };
+          actions.appendChild(b);
+        } else {
+          const b1 = el('button','btn','เพิ่มเป็นสต็อกใหม่');
+          b1.onclick = async ()=>{ b1.disabled=true; await resolveException(ACTIVE_ROUND, exc.id, 'add_new_lot'); toast('เพิ่มสต็อก LOT ใหม่แล้ว','success'); render(); };
+          const b2 = el('button','btn btn-danger','ไม่เพิ่ม (ปฏิเสธ)');
+          b2.onclick = async ()=>{ b2.disabled=true; await resolveException(ACTIVE_ROUND, exc.id, 'reject'); toast('บันทึกการปฏิเสธแล้ว','success'); render(); };
+          actions.appendChild(b1); actions.appendChild(b2);
+        }
+        tr.children[8].appendChild(actions);
+      } else {
+        tr.children[7].appendChild(statusBadge('resolved'));
+        tr.children[8].innerHTML = `<span class="mini">${exc.resolution}</span>`;
+      }
+      etb.appendChild(tr);
+    });
+    et2.appendChild(etb); ewrap.appendChild(et2); container.appendChild(ewrap);
+  }
 
   container.appendChild(el('div','section-title','เทียบยอดนับ vs ยอดระบบ<div class="line"></div>'));
   const wrap = el('div','table-wrap'); const t = el('table');
@@ -1247,7 +1519,25 @@ function rowsToItems(rows){
       lmd: lmDt ? isoDate(lmDt) : null, lmt: (r['Type']||'').trim(), dsm,
     });
   });
-  return {items, anomalies};
+  const rawCount = items.length;
+  const deduped = dedupLatestByKey(items);
+  return {items: deduped, anomalies, rawItemCount: rawCount};
+}
+
+// ไฟล์รายเดือนบางไฟล์เป็น log เคลื่อนไหวสะสม จึงอาจมีหลายแถวต่อ Product+LOT+Location เดียวกัน
+// (คนละวันที่/RefID) — เก็บไว้เฉพาะแถวที่มี "วันที่เคลื่อนไหวล่าสุด (lmd)" ล่าสุดจริงต่อ 1 คีย์เท่านั้น
+// เพื่อไม่ให้ยอดคงเหลือซ้ำซ้อนตอนนำเข้า
+function dedupLatestByKey(items){
+  const map = new Map();
+  items.forEach(it=>{
+    const key = it.c+'|'+(it.exp||'')+'|'+it.loc;
+    const existing = map.get(key);
+    if(!existing){ map.set(key, it); return; }
+    const a = existing.lmd ? new Date(existing.lmd) : null;
+    const b = it.lmd ? new Date(it.lmd) : null;
+    if(b && (!a || b > a)) map.set(key, it);
+  });
+  return Array.from(map.values());
 }
 
 function downloadBlob(filename, content, mime){
@@ -1297,9 +1587,10 @@ function exportPrintPDF(title, headers, rows){
 // ============================================================
 // TAB: IMPORT DATA — REAL
 // ============================================================
-let importState = {rows:null, headers:[], items:null, anomalies:[], mode:'merge', filename:''};
+let importState = {rows:null, headers:[], items:null, anomalies:[], mode:'replace', filename:''};
 
 function renderImport(container){
+  container.appendChild(el('div','footer-note','<b>วิธีใช้งานรายเดือน:</b> ทุกสิ้นเดือน อัปโหลดไฟล์ยอดคงเหลือของเดือนนั้นที่นี่ (โหมด "แทนที่ทั้งหมด") เพื่ออัปเดต Stock Balance ให้เป็นยอดล่าสุด แล้วจึงไปสร้างรอบนับสต็อกใหม่จากยอดนี้ที่แท็บ "รอบการนับ" — Dashboard, มูลค่าสต็อก, หมดอายุ และไม่เคลื่อนไหว จะอัปเดตตามยอดที่นำเข้าล่าสุดทันที'));
   container.appendChild(el('div','section-title','อัปโหลดไฟล์<div class="line"></div>'));
   const dz = el('div','dropzone');
   dz.innerHTML = `<div class="icon">⇪</div><div class="main">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</div>
@@ -1323,7 +1614,7 @@ function renderImport(container){
 }
 
 function handleImportFile(file){
-  importState = {rows:null, headers:[], items:null, anomalies:[], mode:'merge', filename:file.name};
+  importState = {rows:null, headers:[], items:null, anomalies:[], mode:'replace', filename:file.name};
   const ext = file.name.split('.').pop().toLowerCase();
   const reader = new FileReader();
   reader.onload = (e)=>{
@@ -1334,7 +1625,8 @@ function handleImportFile(file){
       if(!rows || rows.length===0){ toast('ไม่พบข้อมูลในไฟล์ หรือไฟล์ว่างเปล่า','error'); return; }
       importState.rows = rows;
       importState.headers = Object.keys(rows[0]);
-      const {items, anomalies} = rowsToItems(rows);
+      const {items, anomalies, rawItemCount} = rowsToItems(rows);
+      importState.rawItemCount = rawItemCount;
       importState.items = items;
       importState.anomalies = anomalies;
       renderImportPreview();
@@ -1362,14 +1654,20 @@ function renderImportPreview(){
   const missingRequired = REQUIRED_COLUMNS.filter(c=>!importState.headers.includes(c));
 
   holder.appendChild(el('div','section-title','3 · Preview ข้อมูล<div class="line"></div>'));
+  const dupCount = importState.rawItemCount - importState.items.length;
   const summary = el('div','import-summary');
   summary.innerHTML = `
-    <div class="stat"><div class="n">${importState.rows.length}</div><div class="l">แถวทั้งหมด</div></div>
+    <div class="stat"><div class="n">${importState.rows.length}</div><div class="l">แถวทั้งหมดในไฟล์</div></div>
+    <div class="stat"><div class="n">${importState.items.length}</div><div class="l">Product+LOT+Location ไม่ซ้ำ (ใช้ยอดล่าสุด)</div></div>
+    <div class="stat"><div class="n" style="color:${dupCount>0?'var(--amber)':'var(--text-dim)'}">${dupCount}</div><div class="l">แถวซ้ำที่ถูกยุบ (เลือกวันที่ล่าสุด)</div></div>
     <div class="stat"><div class="n" style="color:${importState.anomalies.length?'var(--red)':'var(--green)'}">${importState.anomalies.length}</div><div class="l">รายการผิดปกติ</div></div>
     <div class="stat"><div class="n">${new Set(importState.items.map(i=>i.c)).size}</div><div class="l">SKU ไม่ซ้ำ</div></div>
     <div class="stat"><div class="n">${new Set(importState.items.map(i=>i.loc)).size}</div><div class="l">Location</div></div>
   `;
   holder.appendChild(summary);
+  if(dupCount>0){
+    holder.appendChild(el('div','footer-note',`พบ ${dupCount} แถวที่ Product+LOT+Location ซ้ำกัน (ไฟล์นี้น่าจะเป็น log เคลื่อนไหวสะสม) — ระบบเลือกเก็บเฉพาะแถวที่มี "วันที่เคลื่อนไหวล่าสุด" ล่าสุดจริงต่อ 1 รายการ เพื่อใช้เป็นยอดคงเหลือปัจจุบัน`));
+  }
 
   if(importState.anomalies.length>0){
     const al = el('div','anomaly-list');
@@ -1399,16 +1697,17 @@ function renderImportPreview(){
   holder.appendChild(el('div','section-title','4 · เลือกวิธีนำเข้า<div class="line"></div>'));
   const modeChoice = el('div','mode-choice');
   modeChoice.innerHTML = `
-    <label class="mode-card selected" id="modeMerge">
-      <div class="mt"><input type="radio" name="importMode" checked> เพิ่ม/อัปเดต (Merge)</div>
-      <div class="md">อัปเดตเฉพาะ Product+LOT+Location ที่มีในไฟล์ใหม่ ส่วนที่เหลือคงเดิม — ปลอดภัยกว่า</div>
+    <label class="mode-card selected" id="modeReplace">
+      <div class="mt"><input type="radio" name="importMode" checked> แทนที่ทั้งหมด (Replace) — แนะนำสำหรับยอดสิ้นเดือน</div>
+      <div class="md">ใช้ยอดจากไฟล์นี้เป็นยอดคงเหลือปัจจุบันทั้งหมดแทนของเดิม เหมาะกับการอัปโหลดยอดสิ้นเดือนทุกเดือน (SKU ที่ไม่มีในไฟล์ใหม่จะหายไปจากระบบ เพราะถือว่ายอด ณ ปัจจุบันไม่มีแล้ว)</div>
     </label>
-    <label class="mode-card" id="modeReplace">
-      <div class="mt"><input type="radio" name="importMode"> แทนที่ทั้งหมด (Replace)</div>
-      <div class="md">ลบ Stock Balance เดิมทั้งหมด แล้วใช้ข้อมูลจากไฟล์นี้แทน — ใช้เมื่อ export ยอดใหม่ทั้งคลัง</div>
+    <label class="mode-card" id="modeMerge">
+      <div class="mt"><input type="radio" name="importMode"> เพิ่ม/อัปเดตบางส่วน (Merge)</div>
+      <div class="md">อัปเดตเฉพาะ Product+LOT+Location ที่มีในไฟล์ใหม่ ส่วนที่เหลือคงเดิม — ใช้เมื่ออัปโหลดแค่บาง Location/บางส่วน ไม่ใช่ยอดเต็มทั้งคลัง</div>
     </label>
   `;
   holder.appendChild(modeChoice);
+  importState.mode = 'replace';
   const btnStart = el('button','btn btn-primary','นำเข้าข้อมูล');
   btnStart.style.marginTop='14px';
   holder.appendChild(btnStart);
@@ -1445,8 +1744,9 @@ async function doImport(){
   const before = BASE.length;
   let added=0, updated=0;
   if(importState.mode==='replace'){
-    BASE = importState.items.map((i,idx)=>({...i}));
-    added = BASE.length;
+    const oldKeys = new Set(BASE.map(i=>i.c+'|'+i.exp+'|'+i.loc));
+    BASE = importState.items.map(i=>({...i}));
+    BASE.forEach(i=>{ const k=i.c+'|'+i.exp+'|'+i.loc; if(oldKeys.has(k)) updated++; else added++; });
   } else {
     const key = i => i.c+'|'+i.exp+'|'+i.loc;
     const map = new Map(BASE.map(i=>[key(i), i]));
@@ -1459,10 +1759,28 @@ async function doImport(){
   }
   await sSet('seed_v1', BASE, true);
   await logAudit('นำเข้าข้อมูล ('+importState.mode+')', before+' รายการ', BASE.length+' รายการ ('+importState.filename+')');
-  toast(`นำเข้าสำเร็จ — เพิ่มใหม่ ${added} รายการ, อัปเดต ${updated} รายการ`, 'success');
+  const modeMsg = importState.mode==='replace'
+    ? `แทนที่ข้อมูลสำเร็จ — ยอดคงเหลือปัจจุบัน ${BASE.length} รายการ (${added} รายการใหม่, ${updated} รายการที่มีอยู่แล้วถูกอัปเดต)`
+    : `นำเข้าสำเร็จ — เพิ่มใหม่ ${added} รายการ, อัปเดต ${updated} รายการ`;
+  toast(modeMsg, 'success');
   populateFilters();
-  importState = {rows:null, headers:[], items:null, anomalies:[], mode:'merge', filename:''};
+  importState = {rows:null, headers:[], items:null, anomalies:[], mode:'replace', filename:''};
   render();
+  renderImportSuccessCTA();
+}
+
+function renderImportSuccessCTA(){
+  const content = document.getElementById('content');
+  if(!content || state.tab!=='import') return;
+  const box = el('div','confirm-box');
+  box.style.marginTop = '18px';
+  box.innerHTML = `<div class="ct">✅ นำเข้าข้อมูลเรียบร้อยแล้ว</div>
+    <div class="cd">ยอดคงเหลือใหม่พร้อมใช้กับ Dashboard และหน้ามูลค่าสต็อกแล้ว — ถ้าต้องการเปิดรอบนับสต็อกเดือนนี้จากยอดล่าสุดนี้ กดปุ่มด้านล่างได้เลย</div>`;
+  const btn = el('button','btn btn-primary','+ ไปสร้างรอบนับใหม่จากยอดนี้');
+  btn.style.marginTop = '10px';
+  btn.onclick = ()=>{ state.tab='counts'; render(); };
+  box.appendChild(btn);
+  content.querySelector('.section')?.appendChild(box);
 }
 
 // ============================================================
@@ -1549,10 +1867,19 @@ function renderNav(){
     el2.appendChild(el('div','nav-group-label',g.group));
     g.items.forEach(it=>{
       const d = el('div','nav-item'+(state.tab===it.id?' active':''), `<span class="dot"></span><span>${it.label}</span>`);
-      d.onclick = ()=>{ state.tab = it.id; render(); };
+      d.onclick = ()=>{ state.tab = it.id; closeDrawer(); render(); };
       el2.appendChild(d);
     });
   });
+}
+function openDrawer(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('navOverlay').classList.add('show'); }
+function closeDrawer(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('navOverlay').classList.remove('show'); }
+function setupDrawer(){
+  document.getElementById('hamburgerBtn').onclick = ()=>{
+    const sb = document.getElementById('sidebar');
+    sb.classList.contains('open') ? closeDrawer() : openDrawer();
+  };
+  document.getElementById('navOverlay').onclick = closeDrawer;
 }
 
 async function render(){
