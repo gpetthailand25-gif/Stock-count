@@ -495,7 +495,7 @@ function initFirestore(){
 }
 async function sGet(key, shared){
   try{
-    const snap = await db.collection('kv').doc(key).get();
+    const snap = await db.collection('kv_store').doc(key).get();
     if(!snap.exists) return null;
     const v = snap.data().value;
     return v ? JSON.parse(v) : null;
@@ -507,7 +507,7 @@ async function sGet(key, shared){
 }
 async function sSet(key, value, shared){
   try{
-    await db.collection('kv').doc(key).set({ value: JSON.stringify(value), updatedAt: Date.now() });
+    await db.collection('kv_store').doc(key).set({ value: JSON.stringify(value), updatedAt: Date.now() });
     return true;
   }catch(e){
     console.error('sSet failed', key, e);
