@@ -630,6 +630,10 @@ async function sSet(key, value, shared){
     return false;
   }
 }
+async function sDelete(key){
+  try{ await db.collection('kv_store').doc(key).delete(); return true; }
+  catch(e){ console.error('sDelete failed', key, e); toast('ลบข้อมูลไม่สำเร็จ ('+key+'): '+(e.code||e.message), 'error'); return false; }
+}
 
 function toast(msg, type){
   const stack = document.getElementById('toastStack');
@@ -729,6 +733,22 @@ async function setRoundStatus(roundId, status){
   const old = r.status; r.status = status;
   await saveRounds();
   await logAudit(`เปลี่ยนสถานะรอบ ${roundId}`, old, status);
+}
+
+async function deleteRound(roundId){
+  const r = ROUNDS.find(x=>x.id===roundId);
+  if(!r) return;
+  ROUNDS = ROUNDS.filter(x=>x.id!==roundId);
+  await saveRounds();
+  await sDelete('round_detail:'+roundId);
+  await sDelete('exceptions:'+roundId);
+  delete DETAIL_CACHE[roundId];
+  delete EXC_CACHE[roundId];
+  await logAudit('ลบรอบนับ', roundId, '-');
+  if(ACTIVE_ROUND===roundId){
+    ACTIVE_ROUND = ROUNDS.find(x=>x.status!=='closed')?.id || ROUNDS[0]?.id || null;
+  }
+  toast(`ลบรอบ ${roundId} เรียบร้อยแล้ว`, 'success');
 }
 
 // ---------------- count entry ----------------
@@ -1158,6 +1178,7 @@ function renderCounts(container){
   if(ROUNDS.length===0){ container.appendChild(emptyState('ยังไม่มีรอบนับ','สร้างรอบแรกได้จากฟอร์มด้านบน')); return; }
 
   ROUNDS.forEach(r=>{
+    const wrap = el('div','');
     const c = el('div','round-card');
     c.appendChild(el('div','rid',r.id));
     const meta = el('div','meta');
@@ -1174,7 +1195,31 @@ function renderCounts(container){
     c.appendChild(prog);
     c.appendChild(el('div','spacer'));
     c.appendChild(statusBadge2(r.status));
-    container.appendChild(c);
+    const delBtn = el('button','btn btn-danger','ลบ');
+    delBtn.style.cssText = 'margin-left:8px; padding:6px 10px; font-size:11px;';
+    c.appendChild(delBtn);
+    wrap.appendChild(c);
+
+    const confirmStrip = el('div','confirm-box');
+    confirmStrip.style.cssText = 'display:none; margin-bottom:10px;';
+    confirmStrip.innerHTML = `<div class="ct">⚠️ ยืนยันการลบรอบ ${r.id}</div>
+      <div class="cd">การลบนี้ถาวร จะลบข้อมูลการนับทั้งหมด ${r.itemsCount} รายการ และรายงานผิดปกติที่เกี่ยวข้องออกจากระบบ กู้คืนไม่ได้</div>`;
+    const confirmBtns = el('div','step-actions');
+    const btnYes = el('button','btn btn-danger','ยืนยันลบถาวร');
+    const btnNo = el('button','btn','ยกเลิก');
+    btnNo.onclick = ()=>{ confirmStrip.style.display='none'; };
+    btnYes.onclick = async ()=>{
+      btnYes.disabled = true; btnYes.textContent='กำลังลบ...';
+      await deleteRound(r.id);
+      renderIdentityBar();
+      render();
+    };
+    confirmBtns.appendChild(btnYes); confirmBtns.appendChild(btnNo);
+    confirmStrip.appendChild(confirmBtns);
+    wrap.appendChild(confirmStrip);
+
+    delBtn.onclick = ()=>{ confirmStrip.style.display = confirmStrip.style.display==='none' ? 'block' : 'none'; };
+    container.appendChild(wrap);
   });
   container.appendChild(el('div','footer-note','<b>หมายเหตุ:</b> ข้อมูลรอบนับทั้งหมดถูกบันทึกจริงใน storage แชร์กับผู้ใช้ทุกคนที่เปิดหน้านี้ — ทีมงานคนอื่นที่เข้าลิงก์เดียวกันจะเห็นความคืบหน้าล่าสุดร่วมกัน'));
 }
