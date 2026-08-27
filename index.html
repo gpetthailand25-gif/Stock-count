@@ -270,6 +270,7 @@ td.mono{font-family:var(--mono); font-size:12px;}
 .round-card .meta{display:flex; flex-direction:column; gap:2px;}
 .round-card .meta .m1{font-size:13px; font-weight:600;}
 .round-card .meta .m2{font-size:11.5px; color:var(--text-faint);}
+.round-card .meta .m3{font-size:10.5px; color:var(--text-faint); margin-top:3px; font-family:var(--mono);}
 .round-card .prog{flex:1; max-width:220px;}
 .round-card .prog .pt{font-size:11px; color:var(--text-faint); margin-bottom:4px; font-family:var(--mono);}
 .round-card .spacer{flex:1;}
@@ -582,6 +583,8 @@ const todayISO = ()=> new Date().toISOString().slice(0,10);
 
 let currentUser = 'พนักงาน';
 let BASE = null;          // master stock balance (shared, seeded once)
+let SEED_META = null;     // {filename, importedAt, importedBy, itemCount, mode} — describes current BASE version
+let IMPORT_HISTORY = [];  // log of every import ever run
 let ROUNDS = [];          // list of round meta
 let ACTIVE_ROUND = null;  // currently selected round id
 let DETAIL_CACHE = {};    // roundId -> detail array (loaded lazily)
@@ -655,6 +658,12 @@ async function init(){
     BASE = SEED.map(i=>({...i}));
     await sSet('seed_v1', BASE, true);
   }
+  SEED_META = await sGet('seed_meta', true);
+  if(!SEED_META){
+    SEED_META = {filename:'AppSheet_ViewData_2026-08-25.csv', importedAt: nowStr(), importedBy:'ระบบ (ข้อมูลตั้งต้น)', itemCount: BASE.length, mode:'initial'};
+    await sSet('seed_meta', SEED_META, true);
+  }
+  IMPORT_HISTORY = await sGet('import_history', true) || [];
   ROUNDS = await sGet('rounds', true) || [];
   AUDIT = await sGet('audit_log', true) || [];
 
@@ -692,7 +701,8 @@ async function createRound(silent, opts){
     countQty1:null, countQty2:null, finalQty:null, diff:null,
     status:'uncounted', reason:'', countedBy:null, countedAt:null
   }));
-  const meta = {id, month, monthLabel:monthNameTH(month), year, location, status:'counting', owner:currentUser, createdBy:currentUser, createdDate:nowStr(), itemsCount:detail.length};
+  const meta = {id, month, monthLabel:monthNameTH(month), year, location, status:'counting', owner:currentUser, createdBy:currentUser, createdDate:nowStr(), itemsCount:detail.length,
+    sourceData: SEED_META ? {filename:SEED_META.filename, importedAt:SEED_META.importedAt, importedBy:SEED_META.importedBy, itemCount:SEED_META.itemCount} : null};
   ROUNDS.unshift(meta);
   DETAIL_CACHE[id] = detail;
   await sSet('rounds', ROUNDS, true);
@@ -967,6 +977,7 @@ async function renderDashboard(container){
   const pctAccuracy = counted.length? matched.length/counted.length*100 : 0;
 
   container.appendChild(el('div','section-title',`รอบ ${round.id} · ${round.monthLabel} ${round.year} <span style="margin-left:8px;"></span><div class="line"></div>`));
+  if(round.sourceData) container.appendChild(el('div','mini','ข้อมูลจาก: '+round.sourceData.filename+' · นำเข้า '+round.sourceData.importedAt+' โดย '+round.sourceData.importedBy));
   container.querySelector('.section-title span').appendChild(statusBadge2(round.status));
 
   const grid = el('div','kpi-grid');
@@ -1118,6 +1129,9 @@ function renderNonMoving(container){
 // TAB: COUNTS (create / list rounds) — REAL
 // ============================================================
 function renderCounts(container){
+  if(SEED_META){
+    container.appendChild(el('div','footer-note',`<b>ข้อมูล Stock Balance ปัจจุบัน:</b> "${SEED_META.filename}" นำเข้าเมื่อ ${SEED_META.importedAt} โดย ${SEED_META.importedBy} (${SEED_META.itemCount} รายการ) — รอบนับที่สร้างใหม่จากตอนนี้จะใช้ยอดชุดนี้`));
+  }
   container.appendChild(el('div','section-title','สร้างรอบนับใหม่<div class="line"></div>'));
   const form = el('div','new-round-form');
   const locs = ['ทุกคลัง', ...new Set(BASE.map(i=>i.loc))];
@@ -1147,7 +1161,8 @@ function renderCounts(container){
     const c = el('div','round-card');
     c.appendChild(el('div','rid',r.id));
     const meta = el('div','meta');
-    meta.innerHTML = `<div class="m1">${r.monthLabel} ${r.year}</div><div class="m2">${r.location} · ผู้รับผิดชอบ: ${r.owner} · ${r.itemsCount} รายการ · สร้างเมื่อ ${r.createdDate}</div>`;
+    const srcLine = r.sourceData ? `<div class="m3">ข้อมูลจาก: <span class="mono">${r.sourceData.filename}</span> · นำเข้า ${r.sourceData.importedAt}</div>` : '';
+    meta.innerHTML = `<div class="m1">${r.monthLabel} ${r.year}</div><div class="m2">${r.location} · ผู้รับผิดชอบ: ${r.owner} · ${r.itemsCount} รายการ · สร้างเมื่อ ${r.createdDate}</div>${srcLine}`;
     c.appendChild(meta);
     const prog = el('div','prog');
     loadDetail(r.id).then(detail=>{
@@ -1310,6 +1325,7 @@ async function renderReview(container){
   const mismatched = counted.filter(i=>i.status==='mismatch');
 
   container.appendChild(el('div','section-title',`รายการรอตรวจสอบ — ${round.id} <span style="margin-left:8px;"></span><div class="line"></div>`));
+  if(round.sourceData) container.appendChild(el('div','mini','ข้อมูลจาก: '+round.sourceData.filename+' · นำเข้า '+round.sourceData.importedAt+' โดย '+round.sourceData.importedBy));
   container.querySelector('.section-title span').appendChild(statusBadge2(round.status));
 
   const grid = el('div','kpi-grid');
@@ -1591,6 +1607,30 @@ let importState = {rows:null, headers:[], items:null, anomalies:[], mode:'replac
 
 function renderImport(container){
   container.appendChild(el('div','footer-note','<b>วิธีใช้งานรายเดือน:</b> ทุกสิ้นเดือน อัปโหลดไฟล์ยอดคงเหลือของเดือนนั้นที่นี่ (โหมด "แทนที่ทั้งหมด") เพื่ออัปเดต Stock Balance ให้เป็นยอดล่าสุด แล้วจึงไปสร้างรอบนับสต็อกใหม่จากยอดนี้ที่แท็บ "รอบการนับ" — Dashboard, มูลค่าสต็อก, หมดอายุ และไม่เคลื่อนไหว จะอัปเดตตามยอดที่นำเข้าล่าสุดทันที'));
+
+  if(SEED_META){
+    container.appendChild(el('div','section-title','ข้อมูลปัจจุบันที่ใช้งานอยู่<div class="line"></div>'));
+    const cur = el('div','panel');
+    cur.innerHTML = `<div class="mono" style="font-size:13px; color:var(--amber); font-weight:600;">${SEED_META.filename}</div>
+      <div class="mini" style="margin-top:6px;">นำเข้าเมื่อ ${SEED_META.importedAt} โดย ${SEED_META.importedBy} · ${num(SEED_META.itemCount)} รายการ (Product+LOT+Location) · โหมด ${SEED_META.mode==='replace'?'แทนที่ทั้งหมด':(SEED_META.mode==='initial'?'ข้อมูลตั้งต้น':'เพิ่ม/อัปเดตบางส่วน')}</div>`;
+    container.appendChild(cur);
+  }
+
+  if(IMPORT_HISTORY.length>0){
+    container.appendChild(el('div','section-title',`ประวัติการนำเข้าข้อมูลทั้งหมด <span class="mini" style="margin-left:6px;">(${IMPORT_HISTORY.length} ครั้ง)</span><div class="line"></div>`));
+    const hwrap = el('div','table-wrap'); const ht = el('table');
+    ht.innerHTML = `<thead><tr><th>วันที่นำเข้า</th><th>ไฟล์</th><th>โหมด</th><th class="num">แถวในไฟล์</th><th class="num">รายการไม่ซ้ำ</th><th class="num">ใหม่</th><th class="num">อัปเดต</th><th>นำเข้าโดย</th></tr></thead>`;
+    const htb = el('tbody');
+    IMPORT_HISTORY.forEach(h=>{
+      const tr = el('tr');
+      tr.innerHTML = `<td class="mono">${h.importedAt}</td><td class="mono">${h.filename}</td><td class="mini">${h.mode==='replace'?'แทนที่ทั้งหมด':'เพิ่ม/อัปเดต'}</td>
+        <td class="num mono">${num(h.rawRows)}</td><td class="num mono">${num(h.itemCount)}</td>
+        <td class="num mono pos">${num(h.added)}</td><td class="num mono">${num(h.updated)}</td><td class="mini">${h.importedBy}</td>`;
+      htb.appendChild(tr);
+    });
+    ht.appendChild(htb); hwrap.appendChild(ht); container.appendChild(hwrap);
+  }
+
   container.appendChild(el('div','section-title','อัปโหลดไฟล์<div class="line"></div>'));
   const dz = el('div','dropzone');
   dz.innerHTML = `<div class="icon">⇪</div><div class="main">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</div>
@@ -1758,6 +1798,11 @@ async function doImport(){
     BASE = Array.from(map.values());
   }
   await sSet('seed_v1', BASE, true);
+  SEED_META = {filename: importState.filename, importedAt: nowStr(), importedBy: currentUser, itemCount: BASE.length, mode: importState.mode};
+  await sSet('seed_meta', SEED_META, true);
+  IMPORT_HISTORY.unshift({id: Math.random().toString(36).slice(2,9), ...SEED_META, rawRows: importState.rows.length, added, updated});
+  if(IMPORT_HISTORY.length>100) IMPORT_HISTORY = IMPORT_HISTORY.slice(0,100);
+  await sSet('import_history', IMPORT_HISTORY, true);
   await logAudit('นำเข้าข้อมูล ('+importState.mode+')', before+' รายการ', BASE.length+' รายการ ('+importState.filename+')');
   const modeMsg = importState.mode==='replace'
     ? `แทนที่ข้อมูลสำเร็จ — ยอดคงเหลือปัจจุบัน ${BASE.length} รายการ (${added} รายการใหม่, ${updated} รายการที่มีอยู่แล้วถูกอัปเดต)`
