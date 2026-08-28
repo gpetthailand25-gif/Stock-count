@@ -501,6 +501,27 @@ td.mono{font-family:var(--mono); font-size:12px;}
 }
 .exc-field select:focus, .exc-field input:focus{outline:2px solid var(--amber); outline-offset:1px;}
 
+.print-btn{
+  display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px;
+  background:var(--amber); color:#1a1206; font-weight:700; font-size:12.5px; border:none; cursor:pointer;
+}
+.print-btn:hover{filter:brightness(1.08);}
+.print-header{display:none;}
+
+@media print{
+  .sidebar, .topbar, .identity-bar, .hazard, .toast-stack, .nav-overlay, .print-btn, .no-print{ display:none !important; }
+  .app{ display:block !important; }
+  .main{ margin:0 !important; width:100% !important; }
+  .content{ padding:0 !important; }
+  body{ background:#fff !important; color:#111 !important; }
+  .panel, .kpi-card, .bucket, table{ break-inside: avoid; }
+  .section-title{ color:#111 !important; }
+  .print-header{
+    display:block !important; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #333;
+  }
+  .print-header .ph-title{ font-size:20px; font-weight:800; color:#111; }
+  .print-header .ph-sub{ font-size:12px; color:#555; margin-top:4px; }
+}
 </style>
 </head>
 <body>
@@ -922,6 +943,20 @@ const TITLES = {
 
 function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
 
+// สร้างหัวรายงานสำหรับพิมพ์ PDF (แสดงเฉพาะตอนพิมพ์ ผ่าน CSS @media print)
+function printHeader(title){
+  const h = el('div','print-header');
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
+  h.innerHTML = `<div class="ph-title">${title}</div><div class="ph-sub">STOCKCOUNT / WMS · ออกรายงานเมื่อ ${dateStr} โดย ${currentUser||'-'}</div>`;
+  return h;
+}
+function printButton(label){
+  const b = el('button','print-btn no-print', '🖨️ '+(label||'พิมพ์ PDF'));
+  b.onclick = ()=> window.print();
+  return b;
+}
+
 function renderIdentityBar(){
   const bar = document.getElementById('identityBar');
   bar.innerHTML = '';
@@ -1026,9 +1061,13 @@ async function renderDashboard(container){
   const pctCounted = total? counted.length/total*100 : 0;
   const pctAccuracy = counted.length? matched.length/counted.length*100 : 0;
 
-  container.appendChild(el('div','section-title',`รอบ ${round.id} · ${round.monthLabel} ${round.year} <span style="margin-left:8px;"></span><div class="line"></div>`));
+  container.appendChild(printHeader(`Dashboard — รอบ ${round.id} · ${round.monthLabel} ${round.year}`));
+  const dashTitleRow = el('div','section-title',`รอบ ${round.id} · ${round.monthLabel} ${round.year} <span style="margin-left:8px;"></span><div class="line"></div>`);
+  container.appendChild(dashTitleRow);
+  const dashPrintBtn = printButton('พิมพ์ Dashboard เป็น PDF');
+  dashTitleRow.appendChild(dashPrintBtn);
   if(round.sourceData) container.appendChild(el('div','mini','ข้อมูลจาก: '+round.sourceData.filename+' · นำเข้า '+round.sourceData.importedAt+' โดย '+round.sourceData.importedBy));
-  container.querySelector('.section-title span').appendChild(statusBadge2(round.status));
+  dashTitleRow.querySelector('span').appendChild(statusBadge2(round.status));
 
   const grid = el('div','kpi-grid');
   grid.appendChild(kpiCard('จำนวนรายการทั้งหมด', num(total)));
@@ -1088,13 +1127,42 @@ function varianceTable(rows){
 function renderValue(container){
   const items = filterBase(BASE);
   const total = items.reduce((a,i)=>a+i.sv,0);
-  container.appendChild(el('div','section-title','สรุปมูลค่าสต็อก (ยอด Stock Balance ปัจจุบัน)<div class="line"></div>'));
+  container.appendChild(printHeader('รายงานมูลค่าสต็อก (Stock Valuation Report)'));
+  const valueTitleRow = el('div','section-title','สรุปมูลค่าสต็อก (ยอด Stock Balance ปัจจุบัน)<div class="line"></div>');
+  container.appendChild(valueTitleRow);
+  valueTitleRow.appendChild(printButton('พิมพ์มูลค่าสต็อกเป็น PDF'));
   const grid = el('div','kpi-grid');
   grid.appendChild(kpiCard('มูลค่าสต็อกทั้งหมด', money(total)));
   grid.appendChild(kpiCard('จำนวนรายการ (SKU×LOT×Location)', num(items.length)));
   grid.appendChild(kpiCard('จำนวน SKU', num(new Set(items.map(i=>i.c)).size)));
   grid.appendChild(kpiCard('จำนวน Location', num(new Set(items.map(i=>i.loc)).size)));
   container.appendChild(grid);
+
+  // สินค้า Active/ไม่ Active — อิงจากคอลัมน์ 'Active' (Y/N) ตอนนำเข้าไฟล์
+  // ถ้าไฟล์ไม่มีคอลัมน์นี้ ระบบจะถือว่าทุกรายการ active=true (เพื่อไม่ตัดข้อมูลออกโดยไม่ตั้งใจ)
+  const activeItems = items.filter(i=>i.active!==false);
+  const inactiveItems = items.filter(i=>i.active===false);
+  container.appendChild(el('div','section-title','มูลค่าสต็อกตามสถานะสินค้า (Active / ไม่ Active)<div class="line"></div>'));
+  const gridActive = el('div','kpi-grid');
+  gridActive.appendChild(kpiCard('มูลค่าสินค้า Active', money(activeItems.reduce((a,i)=>a+i.sv,0)),'','green'));
+  gridActive.appendChild(kpiCard('จำนวนรายการ Active', num(activeItems.length),'','green'));
+  gridActive.appendChild(kpiCard('มูลค่าสินค้าไม่ Active', money(inactiveItems.reduce((a,i)=>a+i.sv,0)),'','red'));
+  gridActive.appendChild(kpiCard('จำนวนรายการไม่ Active', num(inactiveItems.length),'','red'));
+  container.appendChild(gridActive);
+  if(inactiveItems.length>0){
+    const wrapInactive = el('div','table-wrap');
+    const tInactive = el('table');
+    tInactive.innerHTML = `<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>หมวดหมู่</th><th>Location</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">มูลค่า</th></tr></thead>`;
+    const tbInactive = el('tbody');
+    inactiveItems.slice().sort((a,b)=>b.sv-a.sv).forEach(i=>{
+      const tr=el('tr');
+      tr.innerHTML = `<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td>${i.cat||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.sv)}</td>`;
+      tbInactive.appendChild(tr);
+    });
+    tInactive.appendChild(tbInactive); wrapInactive.appendChild(tInactive);
+    container.appendChild(el('div','mini','รายการสินค้าไม่ Active (เรียงตามมูลค่าสูงสุด)'));
+    container.appendChild(wrapInactive);
+  }
 
   container.appendChild(el('div','section-title','แยกตามหมวดหมู่ & คลัง<div class="line"></div>'));
   const g2 = el('div','grid2');
@@ -1603,10 +1671,13 @@ function rowsToItems(rows){
     const dte = et && expDt ? Math.round((expDt - today)/86400000) : null;
     const dsm = lmDt ? Math.round((today - lmDt)/86400000) : null;
     const sv = r['Residual value']!==undefined && r['Residual value']!=='' ? parseNumJS(r['Residual value']) : qty*uc;
+    // คอลัมน์ Active (Y/N): ถ้าไฟล์ไม่มีคอลัมน์นี้ (undefined) ให้ถือว่า active=true เพื่อไม่กระทบข้อมูลเดิม
+    const activeRaw = r['Active'];
+    const active = activeRaw===undefined || activeRaw===null || activeRaw==='' ? true : String(activeRaw).trim().toUpperCase()==='Y';
     items.push({
       c: pk.code, n: pk.name, cat: cat, u: (r['Unit']||'').trim(), loc: (r['Location']||'').trim(),
       exp: et ? isoDate(expDt) : null, et, dte,
-      qty, uc, sv,
+      qty, uc, sv, active,
       lmd: lmDt ? isoDate(lmDt) : null, lmt: (r['Type']||'').trim(), dsm,
     });
   });
