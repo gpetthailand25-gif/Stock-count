@@ -1224,22 +1224,25 @@ function renderExpiry(container){
   t.appendChild(tb); wrap.appendChild(t); container.appendChild(wrap);
 }
 
+// สินค้าไม่เคลื่อนไหว: อิงจากคอลัมน์ Active (N) ในไฟล์นำเข้า ไม่ใช้วันที่เคลื่อนไหวล่าสุด (dsm)
+// เพราะมีการ "ปรับปรุง" ยอดสต็อกอยู่ตลอด ทำให้วันที่ถูกอัปเดตใหม่แม้สินค้าจะไม่ได้ขาย/เคลื่อนไหวจริง
 function renderNonMoving(container){
   const items = filterBase(BASE);
-  const buckets={d30:[],d60:[],d90:[],d180:[]};
-  items.forEach(i=>{ const d=i.dsm; if(!d) return; if(d>180) buckets.d180.push(i); else if(d>90) buckets.d90.push(i); else if(d>60) buckets.d60.push(i); else if(d>30) buckets.d30.push(i); });
-  container.appendChild(el('div','section-title','Slow Moving / Non Moving Stock<div class="line"></div>'));
+  const inactive = items.filter(i=>i.active===false).sort((a,b)=>b.sv-a.sv);
+  container.appendChild(el('div','section-title','สินค้าไม่เคลื่อนไหว (Active = N)<div class="line"></div>'));
   const row=el('div','bucket-row');
-  [['>30 วัน','watch',buckets.d30],['>60 วัน','warn',buckets.d60],['>90 วัน','urgent',buckets.d90],['>180 วัน','urgent',buckets.d180]].forEach(([label,cls,arr])=>{
-    const b=el('div','bucket '+cls); b.appendChild(el('div','n',num(arr.length))); b.appendChild(el('div','lbl','ไม่เคลื่อนไหว '+label)); b.appendChild(el('div','v',money(arr.reduce((a,i)=>a+i.sv,0)))); row.appendChild(b);
-  });
+  const b=el('div','bucket urgent');
+  b.appendChild(el('div','n',num(inactive.length)));
+  b.appendChild(el('div','lbl','ไม่เคลื่อนไหว (Active=N)'));
+  b.appendChild(el('div','v',money(inactive.reduce((a,i)=>a+i.sv,0))));
+  row.appendChild(b);
   container.appendChild(row);
-  const all=[...buckets.d30,...buckets.d60,...buckets.d90,...buckets.d180].sort((a,b)=>b.sv-a.sv);
+  if(inactive.length===0){ container.appendChild(emptyState('ไม่มีรายการที่ Active=N ในตัวกรองนี้','')); return; }
   container.appendChild(el('div','section-title','รายละเอียด <span style="color:var(--text-faint); text-transform:none; font-weight:400;">เรียงจากมูลค่าสูงสุด</span><div class="line"></div>'));
   const wrap=el('div','table-wrap'); const t=el('table');
-  t.innerHTML=`<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">Stock Qty</th><th>หน่วย</th><th class="num">Unit Cost</th><th class="num">Stock Value</th><th>Last Movement</th><th class="num">วันที่ผ่านมา</th></tr></thead>`;
+  t.innerHTML=`<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">Stock Qty</th><th>หน่วย</th><th class="num">Unit Cost</th><th class="num">Stock Value</th><th>Last Movement</th></tr></thead>`;
   const tb=el('tbody');
-  all.forEach(i=>{ const tr=el('tr'); tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${i.exp||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.uc)}</td><td class="num mono">${money(i.sv)}</td><td class="mono">${i.lmd} <span style="color:var(--text-faint)">(${i.lmt})</span></td><td class="num mono">${i.dsm}</td>`; tb.appendChild(tr); });
+  inactive.forEach(i=>{ const tr=el('tr'); tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${i.exp||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.uc)}</td><td class="num mono">${money(i.sv)}</td><td class="mono">${i.lmd} <span style="color:var(--text-faint)">(${i.lmt})</span></td>`; tb.appendChild(tr); });
   t.appendChild(tb); wrap.appendChild(t); container.appendChild(wrap);
 }
 
