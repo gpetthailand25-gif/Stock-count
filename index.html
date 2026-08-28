@@ -707,9 +707,9 @@ async function createRound(silent, opts){
   }));
   const meta = {id, month, monthLabel:monthNameTH(month), year, location, status:'counting', owner:currentUser, createdBy:currentUser, createdDate:nowStr(), itemsCount:detail.length,
     sourceData: SEED_META ? {filename:SEED_META.filename, importedAt:SEED_META.importedAt, importedBy:SEED_META.importedBy, itemCount:SEED_META.itemCount} : null};
-  ROUNDS.unshift(meta);
   DETAIL_CACHE[id] = detail;
-  await sSet('rounds', ROUNDS, true);
+  const ok = await mutateRoundsAtomic(latest=>{ latest.unshift(meta); return latest; });
+  if(!ok) return null;
   await sSet('round_detail:'+id, detail, true);
   await logAudit('สร้างรอบนับ', '-', id);
   if(!silent) toast('สร้างรอบนับ '+id+' สำเร็จ', 'success');
@@ -728,18 +728,48 @@ async function saveDetail(roundId){
 }
 async function saveRounds(){ await sSet('rounds', ROUNDS, true); }
 
+// ป้องกันข้อมูลถูกเขียนทับเวลามีคนหลายคน/หลายเครื่องใช้งานพร้อมกัน:
+// อ่านข้อมูล 'rounds' ล่าสุดจากเซิร์ฟเวอร์ใน transaction แล้วค่อยแก้ไข+บันทึกแบบอะตอมมิก
+// แทนที่จะใช้ ROUNDS ที่อาจค้างอยู่ในหน่วยความจำของเครื่องนี้ (ซึ่งอาจเก่ากว่าของคนอื่น)
+async function mutateRoundsAtomic(mutatorFn){
+  const ref = db.collection('kv_store').doc('rounds');
+  try{
+    await db.runTransaction(async (tx)=>{
+      const snap = await tx.get(ref);
+      let latest = [];
+      if(snap.exists){
+        const v = snap.data().value;
+        latest = v ? JSON.parse(v) : [];
+      }
+      const updated = mutatorFn(latest) || latest;
+      tx.set(ref, { value: JSON.stringify(updated), updatedAt: Date.now() });
+      ROUNDS = updated;
+    });
+    return true;
+  }catch(e){
+    console.error('mutateRoundsAtomic failed', e);
+    toast('บันทึกรอบนับไม่สำเร็จ: '+(e.code||e.message), 'error');
+    return false;
+  }
+}
+
 async function setRoundStatus(roundId, status){
   const r = ROUNDS.find(x=>x.id===roundId);
-  const old = r.status; r.status = status;
-  await saveRounds();
+  const old = r ? r.status : null;
+  const ok = await mutateRoundsAtomic(latest=>{
+    const rr = latest.find(x=>x.id===roundId);
+    if(rr) rr.status = status;
+    return latest;
+  });
+  if(!ok) return;
   await logAudit(`เปลี่ยนสถานะรอบ ${roundId}`, old, status);
 }
 
 async function deleteRound(roundId){
   const r = ROUNDS.find(x=>x.id===roundId);
   if(!r) return;
-  ROUNDS = ROUNDS.filter(x=>x.id!==roundId);
-  await saveRounds();
+  const ok = await mutateRoundsAtomic(latest=> latest.filter(x=>x.id!==roundId));
+  if(!ok) return; // ถ้าบันทึกไม่สำเร็จ ไม่ต้องลบ round_detail/exceptions ต่อ ป้องกันข้อมูลไม่ตรงกัน
   await sDelete('round_detail:'+roundId);
   await sDelete('exceptions:'+roundId);
   delete DETAIL_CACHE[roundId];
