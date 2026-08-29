@@ -336,6 +336,17 @@ td.mono{font-family:var(--mono); font-size:12px;}
 }
 .identity-bar .logout-btn:hover{color:var(--text); border-color:var(--text-faint);}
 
+.reason-manage-panel{
+  display:flex; flex-direction:column; gap:8px; background:var(--surface2); border:1px solid var(--border);
+  border-radius:10px; padding:14px; margin-bottom:16px;
+}
+.reason-row{display:flex; gap:8px; align-items:center;}
+.reason-edit-input{
+  flex:1; background:var(--surface); border:1px solid var(--border); border-radius:7px;
+  padding:8px 12px; color:var(--text); font-size:13px; font-family:var(--sans);
+}
+.reason-edit-input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+
 .toast-stack{position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:1000;}
 .toast{
   background:var(--surface3); border:1px solid var(--border); border-left:3px solid var(--amber);
@@ -415,7 +426,7 @@ td.mono{font-family:var(--mono); font-size:12px;}
 .report-card .rt{font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;}
 .report-card .rd{font-size:12px; color:var(--text-faint); margin:6px 0 14px 0; line-height:1.5;}
 .report-card .rrow{font-size:11.5px; color:var(--text-dim); margin-bottom:10px; font-family:var(--mono);}
-.report-actions{display:flex; gap:8px;}
+.report-actions{display:flex; gap:8px; flex-wrap:wrap;}
 .report-actions .btn{flex:1; padding:7px 10px; font-size:11.5px;}
 
 .anomaly-list{margin-top:10px; font-size:11.5px; color:var(--text-dim);}
@@ -941,6 +952,37 @@ async function loadExceptions(roundId){
 }
 async function saveExceptions(roundId){ await sSet('exceptions:'+roundId, EXC_CACHE[roundId], true); }
 
+// รายการ "เหตุผล" ของผลต่าง — เก็บใน Firestore แบบ shared เพื่อให้ทุกคนเห็นรายการเดียวกัน และหัวหน้างานเพิ่ม/แก้ไขได้เอง
+let REASON_LIST = null;
+const DEFAULT_REASONS = ['สูญเสีย','เสียหาย','ชั่งน้ำหนักผิด','เบิกไม่ได้ตัด','รับสินค้าไม่ได้เข้า','นับผิด','อื่น ๆ'];
+async function loadReasonList(){
+  if(REASON_LIST) return REASON_LIST;
+  REASON_LIST = await sGet('reason_list', true);
+  if(!REASON_LIST || !Array.isArray(REASON_LIST) || REASON_LIST.length===0){
+    REASON_LIST = DEFAULT_REASONS.slice();
+    await sSet('reason_list', REASON_LIST, true);
+  }
+  return REASON_LIST;
+}
+async function saveReasonList(){ await sSet('reason_list', REASON_LIST, true); }
+
+// รวมจำนวนที่พบจากรายงานผิดตำแหน่ง/ผิด LOT (exceptions) กลับเข้ากับแถวต้นทางที่รายงานเรื่องนั้น
+// เหตุผล: ถ้ารหัสสินค้าเดียวกัน แต่เจอผิด Location/LOT ให้นับรวมเป็นยอดเดียวกัน เพราะสิ่งที่ต้องเช็คหลักคือ "จำนวนรวมตรงไหม"
+// ส่วนตำแหน่ง/LOT ที่ผิดจริงจะไปแก้ไขข้อมูลภายหลัง (ผ่านการอนุมัติ exception) ไม่ใช่ตัวชี้วัดความถูกต้องของยอดนับ
+// คืนค่า array ใหม่ (ไม่แก้ไขของเดิม) พร้อมฟิลด์เพิ่ม: effQty (ยอดนับรวมหลังบวก exception), effDiff, effStatus, exceptionQty (ยอดที่มาจาก exception)
+function applyExceptionMatches(detail, exceptions){
+  return detail.map(i=>{
+    if(i.status==='uncounted') return {...i, effQty:null, effDiff:null, effStatus:'uncounted', exceptionQty:0};
+    const extra = (exceptions||[])
+      .filter(e=> e.code===i.code && e.origLoc===i.loc && e.origExp===i.exp)
+      .reduce((a,e)=>a+(+e.foundQty||0),0);
+    const effQty = (i.finalQty||0) + extra;
+    const effDiff = effQty - i.systemQty;
+    const effStatus = effDiff===0 ? 'matched' : 'mismatch';
+    return {...i, effQty, effDiff, effStatus, exceptionQty: extra};
+  });
+}
+
 async function reportException(roundId, payload){
   const list = await loadExceptions(roundId);
   const rec = {
@@ -991,12 +1033,13 @@ async function resolveException(roundId, excId, action, note){
 
 async function approveRound(roundId){
   const detail = await loadDetail(roundId);
-  const unresolved = detail.filter(i=>i.status==='mismatch' && !i.reason);
+  const exceptions = await loadExceptions(roundId);
+  const effDetail = applyExceptionMatches(detail, exceptions);
+  const unresolved = effDetail.filter(i=>i.effStatus==='mismatch' && !i.reason);
   if(unresolved.length>0){
     toast(`ยังมี ${unresolved.length} รายการที่ไม่ตรง ยังไม่ได้ระบุเหตุผล`, 'error');
     return false;
   }
-  const exceptions = await loadExceptions(roundId);
   const pendingExc = exceptions.filter(e=>e.status==='pending');
   if(pendingExc.length>0){
     toast(`ยังมีรายงานผิดตำแหน่ง/ผิด LOT ที่รอดำเนินการ ${pendingExc.length} รายการ`, 'error');
@@ -1036,6 +1079,9 @@ const TITLES = {
 };
 
 function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+// ป้องกันไม่ให้ตัวเลขในช่อง <input type="number"> เปลี่ยนตอนเลื่อนเมาส์วีล/สครอลผ่านช่องโดยไม่ได้ตั้งใจ
+// ใช้วิธี blur() ออกจากช่องตอนสครอล (ไม่ preventDefault) เพื่อให้หน้าเว็บยังเลื่อนได้ปกติ ไม่ค้างอยู่ที่ช่อง
+function noWheelChange(input){ if(input) input.addEventListener('wheel', ()=>{ if(document.activeElement===input) input.blur(); }, {passive:true}); }
 
 // สร้างหัวรายงานสำหรับพิมพ์ PDF (แสดงเฉพาะตอนพิมพ์ ผ่าน CSS @media print)
 function printHeader(title){
@@ -1148,12 +1194,13 @@ function barPanel(title, dataObj, color){
 async function renderDashboard(container){
   if(!ACTIVE_ROUND){ container.appendChild(emptyState('ยังไม่มีรอบนับ','ไปที่แท็บ "รอบการนับ" เพื่อสร้างรอบใหม่')); return; }
   const round = ROUNDS.find(r=>r.id===ACTIVE_ROUND);
-  const detail = filterDetail(await loadDetail(ACTIVE_ROUND));
+  const exceptions = await loadExceptions(ACTIVE_ROUND);
+  const detail = applyExceptionMatches(filterDetail(await loadDetail(ACTIVE_ROUND)), exceptions);
   const total = detail.length;
   const counted = detail.filter(i=>i.status!=='uncounted');
   const uncounted = detail.filter(i=>i.status==='uncounted');
-  const matched = detail.filter(i=>i.status==='matched');
-  const mismatched = detail.filter(i=>i.status==='mismatch');
+  const matched = counted.filter(i=>i.effStatus==='matched');
+  const mismatched = counted.filter(i=>i.effStatus==='mismatch');
   const pctCounted = total? counted.length/total*100 : 0;
   const pctAccuracy = counted.length? matched.length/counted.length*100 : 0;
 
@@ -1180,7 +1227,7 @@ async function renderDashboard(container){
   g2.appendChild(donutPanel('Stock Count Progress', [{label:'นับแล้ว',value:counted.length,color:'var(--blue)'},{label:'ยังไม่ได้นับ',value:uncounted.length,color:'var(--gray)'}]));
   g2.appendChild(donutPanel('Count Accuracy', [{label:'ตรง',value:matched.length,color:'var(--green)'},{label:'ไม่ตรง',value:mismatched.length,color:'var(--red)'}]));
   const locPanel = el('div','panel'); locPanel.appendChild(el('div','panel-title','Location ที่มีปัญหามากที่สุด <span class="tag">ตามมูลค่าไม่ตรง</span>'));
-  const byLoc = {}; mismatched.forEach(i=>{ byLoc[i.loc]=(byLoc[i.loc]||0)+Math.abs(i.diff*i.unitCost); });
+  const byLoc = {}; mismatched.forEach(i=>{ byLoc[i.loc]=(byLoc[i.loc]||0)+Math.abs(i.effDiff*i.unitCost); });
   const locRows = Object.entries(byLoc).sort((a,b)=>b[1]-a[1]).slice(0,6);
   if(locRows.length===0){ locPanel.appendChild(el('div','mini','ไม่มีรายการผลต่างในตัวกรองนี้')); }
   const maxLoc = Math.max(1,...locRows.map(r=>r[1]));
@@ -1193,7 +1240,7 @@ async function renderDashboard(container){
   container.appendChild(g2);
 
   container.appendChild(el('div','section-title','Top 10 Variance (ตามมูลค่า)<div class="line"></div>'));
-  const top10 = mismatched.slice().sort((a,b)=>Math.abs(b.diff*b.unitCost)-Math.abs(a.diff*a.unitCost)).slice(0,10);
+  const top10 = mismatched.slice().sort((a,b)=>Math.abs(b.effDiff*b.unitCost)-Math.abs(a.effDiff*a.unitCost)).slice(0,10);
   container.appendChild(varianceTable(top10));
 }
 function statusBadge2(s){ const b=el('span','badge badge-'+statusBadgeKind(s), `<span class="dot"></span>${statusLabel(s)}`); return b; }
@@ -1205,13 +1252,18 @@ function varianceTable(rows){
   t.innerHTML = `<thead><tr><th>Product</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">System Qty</th><th class="num">Count Qty</th><th class="num">Diff</th><th class="num">มูลค่าผลต่าง</th><th>สถานะ</th><th>เหตุผล</th></tr></thead>`;
   const tb = el('tbody');
   rows.forEach(i=>{
-    const diffClass = i.diff>0?'pos':(i.diff<0?'neg':'');
+    // ใช้ยอด/สถานะที่รวม exception แล้วถ้ามี (effQty/effDiff/effStatus) ไม่งั้น fallback เป็นค่าดิบ
+    const qty = i.effQty!==undefined ? i.effQty : i.finalQty;
+    const diff = i.effDiff!==undefined ? i.effDiff : i.diff;
+    const status = i.effStatus!==undefined ? i.effStatus : i.status;
+    const diffClass = diff>0?'pos':(diff<0?'neg':'');
     const tr = el('tr');
-    tr.innerHTML = `<td class="mono">${i.code}</td><td class="prodname" title="${i.name}">${i.name}</td><td class="mono">${i.exp||'-'}</td><td>${i.loc}</td>
-      <td class="num mono">${num(i.systemQty)}</td><td class="num mono">${i.finalQty==null?'-':num(i.finalQty)}</td>
-      <td class="num mono ${diffClass}">${i.diff==null?'-':(i.diff>0?'+':'')+num(i.diff)}</td>
-      <td class="num mono ${diffClass}">${i.diff==null?'-':money(i.diff*i.unitCost)}</td><td></td><td class="mini">${i.reason||'—'}</td>`;
-    tr.children[8].appendChild(statusBadge(i.status));
+    const noteHtml = i.exceptionQty>0 ? `<div class="mini" style="color:var(--text-faint); margin-top:2px;">(${num(i.finalQty)} + ${num(i.exceptionQty)} จากตำแหน่งอื่น)</div>` : '';
+    tr.innerHTML = `<td class="mono">${i.code}</td><td class="prodname" title="${i.name}">${i.name}</td><td class="mono">${fmtDateTH(i.exp)||'-'}</td><td>${i.loc}</td>
+      <td class="num mono">${num(i.systemQty)}</td><td class="num mono">${qty==null?'-':num(qty)}${noteHtml}</td>
+      <td class="num mono ${diffClass}">${diff==null?'-':(diff>0?'+':'')+num(diff)}</td>
+      <td class="num mono ${diffClass}">${diff==null?'-':money(diff*i.unitCost)}</td><td></td><td class="mini">${i.reason||'—'}</td>`;
+    tr.children[8].appendChild(statusBadge(status));
     tb.appendChild(tr);
   });
   t.appendChild(tb); wrap.appendChild(t); return wrap;
@@ -1310,14 +1362,15 @@ async function renderExecSummary(container){
   if(ACTIVE_ROUND){
     const round = ROUNDS.find(r=>r.id===ACTIVE_ROUND);
     if(round){
-      const detail = filterDetail(await loadDetail(ACTIVE_ROUND));
+      const execExceptions = await loadExceptions(ACTIVE_ROUND);
+      const detail = applyExceptionMatches(filterDetail(await loadDetail(ACTIVE_ROUND)), execExceptions);
       const total = detail.length;
       const counted = detail.filter(i=>i.status!=='uncounted');
-      const matched = detail.filter(i=>i.status==='matched');
-      const mismatched = detail.filter(i=>i.status==='mismatch');
+      const matched = counted.filter(i=>i.effStatus==='matched');
+      const mismatched = counted.filter(i=>i.effStatus==='mismatch');
       const pctCounted = total? counted.length/total*100 : 0;
       const pctAccuracy = counted.length? matched.length/counted.length*100 : 0;
-      const mismatchValue = mismatched.reduce((a,i)=>a+Math.abs((i.diff||0)*(i.unitCost||0)),0);
+      const mismatchValue = mismatched.reduce((a,i)=>a+Math.abs((i.effDiff||0)*(i.unitCost||0)),0);
       const accGood = pctAccuracy>=95, accWarn = pctAccuracy>=85 && pctAccuracy<95;
       const accEmoji = accGood?'✅':(accWarn?'⚠️':'❌');
       const countGood = pctCounted>=100;
@@ -1385,14 +1438,15 @@ function renderValue(container){
 
   if(ACTIVE_ROUND){
     container.appendChild(el('div','section-title',`มูลค่าตามความคืบหน้าการนับ — รอบ ${ACTIVE_ROUND}<div class="line"></div>`));
-    loadDetail(ACTIVE_ROUND).then(detail=>{
-      detail = filterDetail(detail);
+    loadDetail(ACTIVE_ROUND).then(async detail=>{
+      const exceptions = await loadExceptions(ACTIVE_ROUND);
+      detail = applyExceptionMatches(filterDetail(detail), exceptions);
       const counted = detail.filter(i=>i.status!=='uncounted');
       const uncounted = detail.filter(i=>i.status==='uncounted');
-      const mismatched = detail.filter(i=>i.status==='mismatch');
-      const short = mismatched.filter(i=>i.diff<0), over = mismatched.filter(i=>i.diff>0);
-      const valShort = short.reduce((a,i)=>a+i.diff*i.unitCost,0);
-      const valOver = over.reduce((a,i)=>a+i.diff*i.unitCost,0);
+      const mismatched = counted.filter(i=>i.effStatus==='mismatch');
+      const short = mismatched.filter(i=>i.effDiff<0), over = mismatched.filter(i=>i.effDiff>0);
+      const valShort = short.reduce((a,i)=>a+i.effDiff*i.unitCost,0);
+      const valOver = over.reduce((a,i)=>a+i.effDiff*i.unitCost,0);
       const grid2 = el('div','kpi-grid');
       grid2.appendChild(kpiCard('มูลค่าที่นับแล้ว', money(counted.reduce((a,i)=>a+i.stockValue,0)),'','blue'));
       grid2.appendChild(kpiCard('มูลค่าที่ยังไม่ได้นับ', money(uncounted.reduce((a,i)=>a+i.stockValue,0))));
@@ -1441,7 +1495,7 @@ function renderExpiry(container){
     let lvl='watch',lbl='ปกติ';
     if(i.dte<0){lvl='urgent';lbl='หมดอายุแล้ว';} else if(i.dte<=7){lvl='urgent';lbl=`${i.dte} วัน`;} else if(i.dte<=30){lvl='warn';lbl=`${i.dte} วัน`;} else if(i.dte<=60){lvl='warn';lbl=`${i.dte} วัน`;}
     const tr=el('tr');
-    tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${i.exp}</td><td class="num mono">${i.dte}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.sv)}</td><td></td>`;
+    tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${fmtDateTH(i.exp)}</td><td class="num mono">${i.dte}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.sv)}</td><td></td>`;
     const bm={urgent:'badge-red',warn:'badge-amber',watch:'badge-blue'};
     tr.lastElementChild.innerHTML=`<span class="badge ${bm[lvl]}"><span class="dot"></span>${lbl}</span>`;
     tb.appendChild(tr);
@@ -1467,7 +1521,7 @@ function renderNonMoving(container){
   const wrap=el('div','table-wrap'); const t=el('table');
   t.innerHTML=`<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">Stock Qty</th><th>หน่วย</th><th class="num">Unit Cost</th><th class="num">Stock Value</th><th>Last Movement</th></tr></thead>`;
   const tb=el('tbody');
-  inactive.forEach(i=>{ const tr=el('tr'); tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${i.exp||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.uc)}</td><td class="num mono">${money(i.sv)}</td><td class="mono">${i.lmd} <span style="color:var(--text-faint)">(${i.lmt})</span></td>`; tb.appendChild(tr); });
+  inactive.forEach(i=>{ const tr=el('tr'); tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${fmtDateTH(i.exp)||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.uc)}</td><td class="num mono">${money(i.sv)}</td><td class="mono">${i.lmd} <span style="color:var(--text-faint)">(${i.lmt})</span></td>`; tb.appendChild(tr); });
   t.appendChild(tb); wrap.appendChild(t); container.appendChild(wrap);
 }
 
@@ -1562,7 +1616,8 @@ async function renderMobile(container){
   stickyHead.appendChild(el('div','section-title',`นับสต็อก — รอบ ${round.id} <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">${round.location}</span><div class="line"></div>`));
 
   const toolbar = el('div','count-toolbar');
-  toolbar.innerHTML = `<input id="mobileSearch" placeholder="🔍 ค้นหา Product Code / ชื่อสินค้า / LOT / Location...">`;
+  toolbar.innerHTML = `<input id="mobileSearchCode" type="number" inputmode="numeric" placeholder="🔢 ค้นหาด้วยรหัสสินค้า...">
+    <input id="mobileSearchText" placeholder="🔍 ค้นหาชื่อ/LOT/Location...">`;
   stickyHead.appendChild(toolbar);
   // ตั้งตำแหน่ง sticky ให้อยู่ใต้ topbar หลักพอดี ไม่ทับกัน (วัดความสูง topbar จริงเพราะอาจไม่คงที่ในทุกขนาดจอ)
   requestAnimationFrame(()=>{
@@ -1576,13 +1631,17 @@ async function renderMobile(container){
   const detail = await loadDetail(ACTIVE_ROUND);
   const resultsEl = () => document.getElementById('mobileResults');
 
-  function renderList(query){
+  function renderList(codeQuery, textQuery){
     const box = resultsEl(); if(!box) return;
     box.innerHTML = '';
     let list = filterDetail(detail);
-    if(query){
-      const q = query.toLowerCase();
-      list = list.filter(i=> i.code.toLowerCase().includes(q) || i.name.toLowerCase().includes(q) || i.loc.toLowerCase().includes(q) || (i.exp||'').includes(q));
+    if(codeQuery){
+      const cq = String(codeQuery).toLowerCase();
+      list = list.filter(i=> i.code.toLowerCase().includes(cq));
+    }
+    if(textQuery){
+      const q = textQuery.toLowerCase();
+      list = list.filter(i=> i.name.toLowerCase().includes(q) || i.loc.toLowerCase().includes(q) || (i.exp||'').includes(q));
     }
     const total = list.length;
     list = list.slice(0,40);
@@ -1593,7 +1652,7 @@ async function renderMobile(container){
         <div class="code">${item.code}</div>
         <div class="name">${item.name}</div>
         <div class="meta">
-          <div><span>LOT</span>${item.exp||'-'}</div>
+          <div><span>LOT</span>${fmtDateTH(item.exp)||'-'}</div>
           <div><span>หน่วย</span>${item.unit}</div>
           <div><span>Location</span>${item.loc}</div>
           <div class="sysqty"><span>ยอดคงเหลือในระบบ</span>${num(item.systemQty)} ${item.unit}</div>
@@ -1603,7 +1662,7 @@ async function renderMobile(container){
           <label>จำนวนที่นับจริง (Actual Qty)</label>
           <div class="qty-row">
             <button class="qty-btn" data-act="minus" type="button">−</button>
-            <input class="qty-field" type="number" inputmode="decimal" value="${item.finalQty ?? 0}">
+            <input class="qty-field" type="number" inputmode="decimal" placeholder="0" value="${item.finalQty ?? ''}">
             <button class="qty-btn" data-act="plus" type="button">+</button>
           </div>
           <div class="qty-add-row">
@@ -1644,9 +1703,11 @@ async function renderMobile(container){
       const btnSave = el('button','save-btn', item.status==='uncounted' ? 'บันทึกจำนวนที่นับ' : 'บันทึกการนับซ้ำ');
       card.querySelector('.save-row').appendChild(btnSave);
       const field = card.querySelector('.qty-field');
+      noWheelChange(field);
       card.querySelector('[data-act=minus]').onclick = ()=>{ field.value = Math.max(0,(+field.value||0)-1); };
       card.querySelector('[data-act=plus]').onclick = ()=>{ field.value = (+field.value||0)+1; };
       const addField = card.querySelector('.qty-add-field');
+      noWheelChange(addField);
       card.querySelector('.qty-add-btn').onclick = ()=>{
         const addVal = +addField.value || 0;
         if(addVal<=0){ addField.focus(); return; }
@@ -1660,7 +1721,7 @@ async function renderMobile(container){
         const qty = +field.value || 0;
         await submitCount(ACTIVE_ROUND, item.id, qty);
         toast(`บันทึก ${item.code} = ${num(qty)} ${item.unit}`, 'success');
-        renderList(document.getElementById('mobileSearch').value);
+        renderList(document.getElementById('mobileSearchCode').value, document.getElementById('mobileSearchText').value);
       };
 
       // exception report wiring
@@ -1671,6 +1732,8 @@ async function renderMobile(container){
       [...new Set(BASE.map(i=>i.loc))].sort().forEach(l=>{ const o=document.createElement('option'); o.value=l; o.textContent=l; locSel.appendChild(o); });
       const locField = card.querySelector('.loc-field');
       const lotField = card.querySelector('.lot-field');
+      noWheelChange(card.querySelector('.exc-qty'));
+      noWheelChange(card.querySelector('.exc-remain'));
       card.querySelectorAll(`input[name="excType-${item.id}"]`).forEach(r=>{
         r.onchange = ()=>{
           if(r.value==='location_mismatch' && r.checked){ locField.style.display='block'; lotField.style.display='none'; }
@@ -1695,16 +1758,18 @@ async function renderMobile(container){
           type, foundLoc, foundExp, foundQty, note
         });
         toast('บันทึกรายงานความผิดปกติแล้ว — รอหัวหน้างานตรวจสอบ', 'success');
-        renderList(document.getElementById('mobileSearch').value);
+        renderList(document.getElementById('mobileSearchCode').value, document.getElementById('mobileSearchText').value);
       };
 
       box.appendChild(card);
     });
     if(total>40) box.appendChild(el('div','footer-note',`แสดง 40 จาก ${total} รายการ — พิมพ์ค้นหาให้เจาะจงขึ้นเพื่อดูรายการที่ต้องการ`));
   }
-  renderList('');
+  renderList('','');
   setTimeout(()=>{
-    document.getElementById('mobileSearch').oninput = (e)=> renderList(e.target.value);
+    noWheelChange(document.getElementById('mobileSearchCode'));
+    document.getElementById('mobileSearchCode').oninput = (e)=> renderList(e.target.value, document.getElementById('mobileSearchText').value);
+    document.getElementById('mobileSearchText').oninput = (e)=> renderList(document.getElementById('mobileSearchCode').value, e.target.value);
   },0);
 }
 
@@ -1714,20 +1779,21 @@ async function renderMobile(container){
 async function renderReview(container){
   if(!ACTIVE_ROUND){ container.appendChild(emptyState('ยังไม่มีรอบนับ','')); return; }
   const round = ROUNDS.find(r=>r.id===ACTIVE_ROUND);
-  const detail = filterDetail(await loadDetail(ACTIVE_ROUND));
+  const exceptions = await loadExceptions(ACTIVE_ROUND);
+  const detail = applyExceptionMatches(filterDetail(await loadDetail(ACTIVE_ROUND)), exceptions);
   const counted = detail.filter(i=>i.status!=='uncounted');
-  const mismatched = counted.filter(i=>i.status==='mismatch');
+  const mismatched = counted.filter(i=>i.effStatus==='mismatch');
+  const reasonList = await loadReasonList();
 
   container.appendChild(el('div','section-title',`รายการรอตรวจสอบ — ${round.id} <span style="margin-left:8px;"></span><div class="line"></div>`));
   if(round.sourceData) container.appendChild(el('div','mini','ข้อมูลจาก: '+round.sourceData.filename+' · นำเข้า '+round.sourceData.importedAt+' โดย '+round.sourceData.importedBy));
   container.querySelector('.section-title span').appendChild(statusBadge2(round.status));
 
   const grid = el('div','kpi-grid');
-  const exceptions = await loadExceptions(ACTIVE_ROUND);
   const pendingExc = exceptions.filter(e=>e.status==='pending');
   grid.appendChild(kpiCard('รายการที่นับแล้ว', num(counted.length)));
   grid.appendChild(kpiCard('รอตรวจสอบ (ไม่ตรง)', num(mismatched.length),'','amber'));
-  grid.appendChild(kpiCard('มูลค่าที่ต้องตรวจสอบ', money(mismatched.reduce((a,i)=>a+Math.abs(i.diff*i.unitCost),0)),'','red'));
+  grid.appendChild(kpiCard('มูลค่าที่ต้องตรวจสอบ', money(mismatched.reduce((a,i)=>a+Math.abs(i.effDiff*i.unitCost),0)),'','red'));
   grid.appendChild(kpiCard('ยังไม่ระบุเหตุผล', num(mismatched.filter(i=>!i.reason).length),'','red'));
   grid.appendChild(kpiCard('รายงานผิดตำแหน่ง/ผิด LOT รอดำเนินการ', num(pendingExc.length),'',pendingExc.length?'red':''));
   container.appendChild(grid);
@@ -1742,8 +1808,8 @@ async function renderReview(container){
     exceptions.forEach(exc=>{
       const tr = el('tr');
       const typeLabel = exc.type==='location_mismatch' ? '📍 ผิดตำแหน่ง' : '🏷️ ผิด LOT';
-      const origStr = `${exc.origLoc}${exc.origExp?' / '+exc.origExp:''}`;
-      const foundStr = exc.type==='location_mismatch' ? exc.foundLoc : `${exc.foundLoc} / ${exc.foundExp||'-'}`;
+      const origStr = `${exc.origLoc}${exc.origExp?' / '+fmtDateTH(exc.origExp):''}`;
+      const foundStr = exc.type==='location_mismatch' ? exc.foundLoc : `${exc.foundLoc} / ${exc.foundExp?fmtDateTH(exc.foundExp):'-'}`;
       tr.innerHTML = `<td class="mini">${typeLabel}</td><td class="mono">${exc.code}</td><td class="prodname" title="${exc.name}">${exc.name}</td>
         <td class="mono">${origStr}</td><td class="mono">${foundStr}</td><td class="num mono">${num(exc.foundQty)}</td>
         <td class="mini">${exc.reportedBy}<br><span style="color:var(--text-faint)">${exc.reportedAt}</span></td><td></td><td></td>`;
@@ -1771,21 +1837,72 @@ async function renderReview(container){
     et2.appendChild(etb); ewrap.appendChild(et2); container.appendChild(ewrap);
   }
 
-  container.appendChild(el('div','section-title','เทียบยอดนับ vs ยอดระบบ<div class="line"></div>'));
+  const compareTitleRow = el('div','section-title','เทียบยอดนับ vs ยอดระบบ <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">Count Qty รวมยอดที่พบจากรายงานผิดตำแหน่ง/ผิด LOT (รหัสเดียวกัน) แล้ว</span><div class="line"></div>');
+  container.appendChild(compareTitleRow);
+  const manageReasonBtn = el('button','print-btn no-print','⚙️ จัดการเหตุผล');
+  compareTitleRow.appendChild(manageReasonBtn);
+  const reasonPanel = el('div','reason-manage-panel'); reasonPanel.style.display='none';
+  container.appendChild(reasonPanel);
+  function renderReasonPanel(){
+    reasonPanel.innerHTML = '';
+    reasonList.forEach((r,idx)=>{
+      const row = el('div','reason-row');
+      const inp = document.createElement('input'); inp.value = r; inp.className='reason-edit-input';
+      const saveBtn = el('button','btn','บันทึก');
+      const delBtn = el('button','btn btn-danger','ลบ');
+      saveBtn.onclick = async ()=>{
+        const newVal = inp.value.trim();
+        if(!newVal){ toast('กรุณากรอกข้อความเหตุผล','error'); return; }
+        reasonList[idx] = newVal;
+        await saveReasonList();
+        await logAudit('แก้ไขรายการเหตุผล', r, newVal);
+        toast('บันทึกแล้ว','success'); render();
+      };
+      delBtn.onclick = async ()=>{
+        reasonList.splice(idx,1);
+        await saveReasonList();
+        await logAudit('ลบรายการเหตุผล', r, '-');
+        toast('ลบแล้ว','success'); render();
+      };
+      row.appendChild(inp); row.appendChild(saveBtn); row.appendChild(delBtn);
+      reasonPanel.appendChild(row);
+    });
+    const addRow = el('div','reason-row');
+    const addInp = document.createElement('input'); addInp.placeholder='เพิ่มเหตุผลใหม่...'; addInp.className='reason-edit-input';
+    const addBtn = el('button','btn btn-primary','+ เพิ่ม');
+    addBtn.onclick = async ()=>{
+      const val = addInp.value.trim();
+      if(!val){ toast('กรุณากรอกข้อความเหตุผล','error'); return; }
+      if(reasonList.includes(val)){ toast('มีเหตุผลนี้อยู่แล้ว','error'); return; }
+      reasonList.push(val);
+      await saveReasonList();
+      await logAudit('เพิ่มรายการเหตุผล', '-', val);
+      toast('เพิ่มแล้ว','success'); render();
+    };
+    addRow.appendChild(addInp); addRow.appendChild(addBtn);
+    reasonPanel.appendChild(addRow);
+  }
+  manageReasonBtn.onclick = ()=>{
+    const showing = reasonPanel.style.display!=='none';
+    if(showing){ reasonPanel.style.display='none'; }
+    else { renderReasonPanel(); reasonPanel.style.display='flex'; }
+  };
+
   const wrap = el('div','table-wrap'); const t = el('table');
   t.innerHTML = `<thead><tr><th>Product</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">System Qty</th><th class="num">Count Qty</th><th class="num">Diff</th><th>สถานะ</th><th>เหตุผล</th></tr></thead>`;
   const tb = el('tbody');
-  const sorted = counted.slice().sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
+  const sorted = counted.slice().sort((a,b)=>Math.abs(b.effDiff)-Math.abs(a.effDiff));
   sorted.slice(0,80).forEach(i=>{
-    const diffClass = i.diff>0?'pos':(i.diff<0?'neg':'');
+    const diffClass = i.effDiff>0?'pos':(i.effDiff<0?'neg':'');
     const tr = el('tr');
-    tr.innerHTML = `<td class="mono">${i.code}</td><td class="prodname" title="${i.name}">${i.name}</td><td class="mono">${i.exp||'-'}</td><td>${i.loc}</td>
-      <td class="num mono">${num(i.systemQty)}</td><td class="num mono">${num(i.finalQty)}</td>
-      <td class="num mono ${diffClass}">${i.diff>0?'+':''}${num(i.diff)}</td><td></td><td></td>`;
-    tr.children[7].appendChild(statusBadge(i.status));
-    if(i.status==='mismatch'){
+    const countCellNote = i.exceptionQty>0 ? `<div class="mini" style="color:var(--text-faint); margin-top:2px;">(${num(i.finalQty)} + ${num(i.exceptionQty)} จากตำแหน่งอื่น)</div>` : '';
+    tr.innerHTML = `<td class="mono">${i.code}</td><td class="prodname" title="${i.name}">${i.name}</td><td class="mono">${fmtDateTH(i.exp)||'-'}</td><td>${i.loc}</td>
+      <td class="num mono">${num(i.systemQty)}</td><td class="num mono">${num(i.effQty)}${countCellNote}</td>
+      <td class="num mono ${diffClass}">${i.effDiff>0?'+':''}${num(i.effDiff)}</td><td></td><td></td>`;
+    tr.children[7].appendChild(statusBadge(i.effStatus));
+    if(i.effStatus==='mismatch'){
       const sel = document.createElement('select'); sel.className='reason-select';
-      ['เลือกเหตุผล...','สูญเสีย','เสียหาย','ชั่งน้ำหนักผิด','เบิกไม่ได้ตัด','รับสินค้าไม่ได้เข้า','นับผิด','อื่น ๆ'].forEach(r=>{
+      ['เลือกเหตุผล...', ...reasonList].forEach(r=>{
         const o=document.createElement('option'); o.textContent=r; if(r===i.reason) o.selected=true; sel.appendChild(o);
       });
       sel.onchange = async ()=>{ await setReason(ACTIVE_ROUND, i.id, sel.value==='เลือกเหตุผล...'?'':sel.value); toast('บันทึกเหตุผลแล้ว','success'); };
@@ -1816,11 +1933,12 @@ async function renderReview(container){
 // ============================================================
 async function renderVariance(container){
   if(!ACTIVE_ROUND){ container.appendChild(emptyState('ยังไม่มีรอบนับ','')); return; }
-  const detail = filterDetail(await loadDetail(ACTIVE_ROUND));
+  const exceptions = await loadExceptions(ACTIVE_ROUND);
+  const detail = applyExceptionMatches(filterDetail(await loadDetail(ACTIVE_ROUND)), exceptions);
   const counted = detail.filter(i=>i.status!=='uncounted');
-  const mismatched = counted.filter(i=>i.status==='mismatch');
-  const short = mismatched.filter(i=>i.diff<0), over = mismatched.filter(i=>i.diff>0);
-  const matched = counted.filter(i=>i.status==='matched');
+  const mismatched = counted.filter(i=>i.effStatus==='mismatch');
+  const short = mismatched.filter(i=>i.effDiff<0), over = mismatched.filter(i=>i.effDiff>0);
+  const matched = counted.filter(i=>i.effStatus==='matched');
 
   container.appendChild(el('div','section-title','Stock Variance<div class="line"></div>'));
   const grid = el('div','kpi-grid');
@@ -1828,18 +1946,18 @@ async function renderVariance(container){
   grid.appendChild(kpiCard('รายการขาด', num(short.length),'','red'));
   grid.appendChild(kpiCard('รายการเกิน', num(over.length),'','amber'));
   grid.appendChild(kpiCard('ต้องตรวจสอบทั้งหมด', num(mismatched.length)));
-  grid.appendChild(kpiCard('มูลค่าของรายการขาด', money(Math.abs(short.reduce((a,i)=>a+i.diff*i.unitCost,0))),'','red'));
-  grid.appendChild(kpiCard('มูลค่าของรายการเกิน', money(over.reduce((a,i)=>a+i.diff*i.unitCost,0)),'','green'));
-  const net = mismatched.reduce((a,i)=>a+i.diff*i.unitCost,0);
+  grid.appendChild(kpiCard('มูลค่าของรายการขาด', money(Math.abs(short.reduce((a,i)=>a+i.effDiff*i.unitCost,0))),'','red'));
+  grid.appendChild(kpiCard('มูลค่าของรายการเกิน', money(over.reduce((a,i)=>a+i.effDiff*i.unitCost,0)),'','green'));
+  const net = mismatched.reduce((a,i)=>a+i.effDiff*i.unitCost,0);
   grid.appendChild(kpiCard('Net Variance', (net>=0?'+':'')+money(net),'', net<0?'red':'green'));
   container.appendChild(grid);
 
   container.appendChild(el('div','section-title','Variance by Category<div class="line"></div>'));
-  const byCat={}; mismatched.forEach(i=>{ byCat[i.cat||'ไม่ระบุ']=(byCat[i.cat||'ไม่ระบุ']||0)+Math.abs(i.diff*i.unitCost); });
+  const byCat={}; mismatched.forEach(i=>{ byCat[i.cat||'ไม่ระบุ']=(byCat[i.cat||'ไม่ระบุ']||0)+Math.abs(i.effDiff*i.unitCost); });
   container.appendChild(barPanel('มูลค่าผลต่างแยก Category', byCat, 'var(--red)'));
 
   container.appendChild(el('div','section-title','รายการผลต่างทั้งหมด<div class="line"></div>'));
-  container.appendChild(varianceTable(mismatched.slice().sort((a,b)=>Math.abs(b.diff*b.unitCost)-Math.abs(a.diff*a.unitCost))));
+  container.appendChild(varianceTable(mismatched.slice().sort((a,b)=>Math.abs(b.effDiff*b.unitCost)-Math.abs(a.effDiff*a.unitCost))));
 }
 
 // ============================================================
@@ -1875,6 +1993,21 @@ function parseThaiDateJS(s){
   return dt;
 }
 function isoDate(dt){ if(!dt) return null; const p=x=>String(x).padStart(2,'0'); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}`; }
+// แปลงวันที่ ISO (YYYY-MM-DD) เป็น DD/MM/YYYY สำหรับแสดง LOT ทุกหน้า
+// ค่าที่เก็บจริง (i.exp) ยังคงเป็น ISO เหมือนเดิม เพื่อให้ sort/เปรียบเทียบ/ผูกกับ exception ได้ถูกต้อง — ฟังก์ชันนี้ใช้ตอนแสดงผลเท่านั้น
+function fmtDateTH(iso){
+  if(!iso) return iso;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if(!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+// แปลง ISO เป็น DD/MM/YYYY แบบ พ.ศ. (ปี ค.ศ.+543) — ใช้เฉพาะตอน export กลับไฟล์ AppSheet เพราะไฟล์ต้นฉบับ (Lot/Date) ใช้ปี พ.ศ.
+function fmtDateBE(iso){
+  if(!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if(!m) return iso;
+  return `${m[3]}/${m[2]}/${parseInt(m[1],10)+543}`;
+}
 function parseNumJS(s){ if(s==null||s==='') return 0; const n = parseFloat(String(s).replace(/[$,]/g,'')); return isNaN(n)?0:n; }
 function parseProductKeyJS(s){
   if(!s) return {code:'', name:''};
@@ -1972,7 +2105,8 @@ function exportXLSX(filename, headers, rows, sheetName){
   XLSX.utils.book_append_sheet(wb, ws, sheetName||'Report');
   XLSX.writeFile(wb, filename);
 }
-function exportPrintPDF(title, headers, rows){
+function exportPrintPDF(title, headers, rows, orientation){
+  orientation = orientation === 'portrait' ? 'portrait' : 'landscape';
   const w = window.open('', '_blank');
   const style = `
     <style>
@@ -1983,14 +2117,15 @@ function exportPrintPDF(title, headers, rows){
       th,td{border:1px solid #ccc; padding:5px 8px; text-align:left;}
       th{background:#eee;}
       td.num, th.num{text-align:right;}
-      @media print{ @page{ size:landscape; margin:14mm; } }
+      th:first-child, td:first-child{text-align:center; width:36px;}
+      @media print{ @page{ size:A4 ${orientation}; margin:14mm; } }
     </style>`;
   const thead = '<tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr>';
   const tbody = rows.map(r=>'<tr>'+r.map(c=>`<td>${c==null?'':c}</td>`).join('')+'</tr>').join('');
   w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai&display=swap" rel="stylesheet">
     <title>${title}</title>${style}</head><body>
-    <h1>${title}</h1><div class="meta">พิมพ์เมื่อ ${nowStr()} · ${rows.length} รายการ</div>
+    <h1>${title}</h1><div class="meta">พิมพ์เมื่อ ${nowStr()} · ${rows.length} รายการ · กระดาษ A4 แนว${orientation==='portrait'?'ตั้ง':'นอน'}</div>
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}${'</scr'+'ipt>'}
     </body></html>`);
@@ -2229,44 +2364,75 @@ function renderImportSuccessCTA(){
 // TAB: EXPORT — REAL
 // ============================================================
 function reportStockCount(){
-  const detail = ACTIVE_ROUND ? (DETAIL_CACHE[ACTIVE_ROUND]||[]) : [];
-  const headers = ['Product Code','ชื่อสินค้า','LOT','Location','System Qty','Count Qty','Final Qty','Diff','สถานะ','นับโดย','เวลา'];
-  const rows = filterDetail(detail).map(i=>[i.code,i.name,i.exp||'-',i.loc,i.systemQty,i.countQty1??'-',i.finalQty??'-',i.diff??'-',statusLabelTH(i.status),i.countedBy||'-',i.countedAt||'-']);
+  const rawDetail = ACTIVE_ROUND ? (DETAIL_CACHE[ACTIVE_ROUND]||[]) : [];
+  const exceptions = ACTIVE_ROUND ? (EXC_CACHE[ACTIVE_ROUND]||[]) : [];
+  const detail = applyExceptionMatches(filterDetail(rawDetail), exceptions);
+  const headers = ['ลำดับ','Product Code','ชื่อสินค้า','LOT','Location','System Qty','Count Qty','Final Qty (รวม exception)','Diff','สถานะ','นับโดย','เวลา'];
+  const rows = detail.map((i,idx)=>[idx+1,i.code,i.name,fmtDateTH(i.exp)||'-',i.loc,i.systemQty,i.countQty1??'-',i.effQty??'-',i.effDiff??'-',statusLabelTH(i.effStatus||i.status),i.countedBy||'-',i.countedAt||'-']);
   return {headers, rows, title:`Stock Count Report — ${ACTIVE_ROUND||''}`};
 }
 function reportVariance(){
-  const detail = ACTIVE_ROUND ? (DETAIL_CACHE[ACTIVE_ROUND]||[]) : [];
-  const mismatched = filterDetail(detail).filter(i=>i.status==='mismatch');
-  const headers = ['Product Code','ชื่อสินค้า','LOT','Location','System Qty','Final Qty','Diff','มูลค่าผลต่าง','เหตุผล'];
-  const rows = mismatched.map(i=>[i.code,i.name,i.exp||'-',i.loc,i.systemQty,i.finalQty,i.diff,Math.round(i.diff*i.unitCost),i.reason||'-']);
+  const rawDetail = ACTIVE_ROUND ? (DETAIL_CACHE[ACTIVE_ROUND]||[]) : [];
+  const exceptions = ACTIVE_ROUND ? (EXC_CACHE[ACTIVE_ROUND]||[]) : [];
+  const mismatched = applyExceptionMatches(filterDetail(rawDetail), exceptions).filter(i=>i.effStatus==='mismatch');
+  const headers = ['ลำดับ','Product Code','ชื่อสินค้า','LOT','Location','System Qty','Final Qty (รวม exception)','Diff','มูลค่าผลต่าง','เหตุผล'];
+  const rows = mismatched.map((i,idx)=>[idx+1,i.code,i.name,fmtDateTH(i.exp)||'-',i.loc,i.systemQty,i.effQty,i.effDiff,Math.round(i.effDiff*i.unitCost),i.reason||'-']);
   return {headers, rows, title:`Variance Report — ${ACTIVE_ROUND||''}`};
 }
 function reportExpiry(){
-  const items = filterBase(BASE).filter(i=>i.et && i.dte!=null).sort((a,b)=>a.dte-b.dte);
-  const headers = ['Product Code','ชื่อสินค้า','LOT/วันหมดอายุ','เหลือ (วัน)','Location','จำนวน','หน่วย','มูลค่า'];
-  const rows = items.map(i=>[i.c,i.n,i.exp,i.dte,i.loc,i.qty,i.u,Math.round(i.sv)]);
+  const items = filterBase(BASE).filter(i=>i.et && i.cat==='วัตถุดิบ' && i.dte!=null).sort((a,b)=>a.dte-b.dte);
+  const headers = ['ลำดับ','Product Code','ชื่อสินค้า','LOT/วันหมดอายุ','เหลือ (วัน)','Location','จำนวน','หน่วย','มูลค่า'];
+  const rows = items.map((i,idx)=>[idx+1,i.c,i.n,fmtDateTH(i.exp),i.dte,i.loc,i.qty,i.u,Math.round(i.sv)]);
   return {headers, rows, title:'Expiry Report'};
 }
 function reportNonMoving(){
-  const items = filterBase(BASE).filter(i=>i.dsm>30).sort((a,b)=>b.sv-a.sv);
-  const headers = ['Product Code','ชื่อสินค้า','LOT','Location','Stock Qty','หน่วย','Unit Cost','Stock Value','Last Movement','วันที่ผ่านมา'];
-  const rows = items.map(i=>[i.c,i.n,i.exp||'-',i.loc,i.qty,i.u,i.uc,Math.round(i.sv),i.lmd||'-',i.dsm]);
+  const items = filterBase(BASE).filter(i=>i.active===false).sort((a,b)=>b.sv-a.sv);
+  const headers = ['ลำดับ','Product Code','ชื่อสินค้า','LOT','Location','Stock Qty','หน่วย','Unit Cost','Stock Value','Last Movement'];
+  const rows = items.map((i,idx)=>[idx+1,i.c,i.n,fmtDateTH(i.exp)||'-',i.loc,i.qty,i.u,i.uc,Math.round(i.sv),i.lmd||'-']);
   return {headers, rows, title:'Non-Moving Stock Report'};
 }
 function reportValuation(){
   const items = filterBase(BASE).sort((a,b)=>b.sv-a.sv);
-  const headers = ['Product Code','ชื่อสินค้า','Category','LOT','Location','Qty','หน่วย','Unit Cost','Stock Value'];
-  const rows = items.map(i=>[i.c,i.n,i.cat,i.exp||'-',i.loc,i.qty,i.u,i.uc,Math.round(i.sv)]);
+  const headers = ['ลำดับ','Product Code','ชื่อสินค้า','Category','LOT','Location','Qty','หน่วย','Unit Cost','Stock Value'];
+  const rows = items.map((i,idx)=>[idx+1,i.c,i.n,i.cat,fmtDateTH(i.exp)||'-',i.loc,i.qty,i.u,i.uc,Math.round(i.sv)]);
   return {headers, rows, title:'Stock Valuation Report'};
 }
 function statusLabelTH(s){ return {matched:'ตรง', mismatch:'ไม่ตรง', uncounted:'ยังไม่ได้นับ'}[s]||s; }
+
+// รหัส Location ตามเทมเพลต AppSheet "Check Stock" (คอลัมน์ LocationKey/LocationName ในไฟล์ต้นฉบับ)
+// ต้องส่ง Location เป็น "รหัส" (เช่น 002) ไม่ใช่ชื่อเต็ม เพราะ AppSheet ผูก dropdown Location กับรหัสนี้
+const LOCATION_CODE_MAP = {
+  'อินโนว่าชั้น1':'001', 'อินโนว่าชั้น2':'002', 'โกดัง':'003',
+  'อินโนว่า ตู้คอนเทนเนอร์':'004', 'อินโนว่า ห้องชิว':'005', 'อินโนว่า ห้องแช่แข็ง':'006',
+  'อินโนว่า  ห้องคุกกี้':'007', 'เนย์คิริน ตู้แช่เย็น':'008', 'อินโนว่าชั้น3':'009',
+  'คอนเทนเนอร์ไร่ขิง42':'010', 'ตู้คอนเนอร์ โกดัง66/2':'011',
+};
+function locationCode(name){ return LOCATION_CODE_MAP[name] || name; }
+function randomCountKey(){ return Math.random().toString(16).slice(2,10); }
+
+// สร้างไฟล์ตามเทมเพลต "ส่งออกไป AppSheet_Check Stock" ที่ผู้ใช้ให้มา
+// คอลัมน์: COUNTKey, Date, ProductKey, LOT, Location(รหัส), QtyCount, Unit, Timestamp
+// ดึงจากรายการที่ "นับแล้ว" ในรอบที่กำลังทำงานอยู่ — ใช้ยอดที่นับจริง ณ ตำแหน่งนั้น (ไม่รวม exception จากตำแหน่งอื่น
+// เพราะแต่ละแถวต้องผูกกับ Location เดียวตามที่ AppSheet กำหนด)
+function reportAppSheetCheckStock(){
+  const rawDetail = ACTIVE_ROUND ? (DETAIL_CACHE[ACTIVE_ROUND]||[]) : [];
+  const counted = filterDetail(rawDetail).filter(i=>i.status!=='uncounted' && i.finalQty!=null);
+  const headers = ['COUNTKey','Date','ProductKey','LOT','Location','QtyCount','Unit','Timestamp'];
+  const rows = counted.map(i=>{
+    const ts = i.countedAt || nowStr();
+    const dateOnly = ts.split(' ')[0];
+    return [randomCountKey(), dateOnly, '*'+i.code, i.exp?fmtDateBE(i.exp):'', locationCode(i.loc), i.finalQty, i.unit, ts];
+  });
+  return {headers, rows, title:`AppSheet_CheckStock_Export_${ACTIVE_ROUND||''}`};
+}
 
 const REPORTS = [
   {id:'count', name:'Stock Count Report', desc:'สถานะการนับรายรายการของรอบที่เลือก', fn:reportStockCount, needsRound:true},
   {id:'variance', name:'Variance Report', desc:'รายการที่ผลต่างไม่ตรงของรอบที่เลือก พร้อมเหตุผล', fn:reportVariance, needsRound:true},
   {id:'expiry', name:'Expiry Report', desc:'สินค้าใกล้หมดอายุ/หมดอายุแล้ว ทั้งหมด', fn:reportExpiry, needsRound:false},
-  {id:'nonmoving', name:'Non-Moving Stock Report', desc:'สินค้าไม่เคลื่อนไหวเกิน 30 วัน เรียงตามมูลค่า', fn:reportNonMoving, needsRound:false},
+  {id:'nonmoving', name:'Non-Moving Stock Report', desc:'สินค้าไม่เคลื่อนไหว (Active=N) เรียงตามมูลค่า', fn:reportNonMoving, needsRound:false},
   {id:'valuation', name:'Stock Valuation Report', desc:'มูลค่าสต็อกทั้งหมดรายรายการ', fn:reportValuation, needsRound:false},
+  {id:'appsheet', name:'Export to AppSheet (Check Stock)', desc:'ไฟล์ตามเทมเพลต AppSheet Check Stock (COUNTKey/Date/ProductKey/LOT/Location/QtyCount/Unit/Timestamp) ของรอบที่เลือก — นำเข้ากลับ AppSheet ได้โดยตรง', fn:reportAppSheetCheckStock, needsRound:true},
 ];
 
 function renderExport(container){
@@ -2283,7 +2449,8 @@ function renderExport(container){
     const actions = el('div','report-actions');
     const btnCsv = el('button','btn','CSV');
     const btnXlsx = el('button','btn','Excel');
-    const btnPdf = el('button','btn','PDF');
+    const btnPdfP = el('button','btn','📄 PDF แนวตั้ง');
+    const btnPdfL = el('button','btn','📄 PDF แนวนอน');
     btnCsv.onclick = ()=>{ const {headers,rows,title} = rep.fn(); if(rows.length===0){toast('ไม่มีข้อมูลสำหรับ export','error'); return;} exportCSV(title.replace(/\s+/g,'_')+'.csv', headers, rows); logAudit('Export CSV', '-', title); toast('ดาวน์โหลด CSV แล้ว','success'); };
     btnXlsx.onclick = ()=>{
       if(!window.XLSX){ toast('ไลบรารี Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','error'); return; }
@@ -2291,13 +2458,14 @@ function renderExport(container){
       exportXLSX(title.replace(/\s+/g,'_')+'.xlsx', headers, rows, rep.name.slice(0,28));
       logAudit('Export Excel', '-', title); toast('ดาวน์โหลด Excel แล้ว','success');
     };
-    btnPdf.onclick = ()=>{ const {headers,rows,title} = rep.fn(); if(rows.length===0){toast('ไม่มีข้อมูลสำหรับ export','error'); return;} exportPrintPDF(title, headers, rows); logAudit('Export PDF (Print)', '-', title); };
-    actions.appendChild(btnCsv); actions.appendChild(btnXlsx); actions.appendChild(btnPdf);
+    btnPdfP.onclick = ()=>{ const {headers,rows,title} = rep.fn(); if(rows.length===0){toast('ไม่มีข้อมูลสำหรับ export','error'); return;} exportPrintPDF(title, headers, rows, 'portrait'); logAudit('Export PDF (แนวตั้ง)', '-', title); };
+    btnPdfL.onclick = ()=>{ const {headers,rows,title} = rep.fn(); if(rows.length===0){toast('ไม่มีข้อมูลสำหรับ export','error'); return;} exportPrintPDF(title, headers, rows, 'landscape'); logAudit('Export PDF (แนวนอน)', '-', title); };
+    actions.appendChild(btnCsv); actions.appendChild(btnXlsx); actions.appendChild(btnPdfP); actions.appendChild(btnPdfL);
     card.appendChild(actions);
     grid.appendChild(card);
   });
   container.appendChild(grid);
-  container.appendChild(el('div','footer-note','<b>หมายเหตุ:</b> ปุ่ม "PDF" จะเปิดหน้าต่างใหม่พร้อมเปิดกล่องพิมพ์ของเบราว์เซอร์ให้อัตโนมัติ — เลือกปลายทางเป็น "Save as PDF" เพื่อบันทึกเป็นไฟล์ PDF (วิธีนี้แสดงผลภาษาไทยได้ถูกต้อง 100% ต่างจากการสร้าง PDF ตรงๆ ที่มักมีปัญหาฟอนต์ภาษาไทย)'));
+  container.appendChild(el('div','footer-note','<b>หมายเหตุ:</b> ทุกรายงานมีคอลัมน์ "ลำดับ" (เลขที่แถว) ให้อัตโนมัติ · ปุ่ม "PDF แนวตั้ง/แนวนอน" จะเปิดหน้าต่างใหม่พร้อมเปิดกล่องพิมพ์ของเบราว์เซอร์ให้อัตโนมัติ ตั้งขนาดกระดาษเป็น A4 ตามแนวที่เลือก — เลือกปลายทางเป็น "Save as PDF" เพื่อบันทึกเป็นไฟล์ PDF (วิธีนี้แสดงผลภาษาไทยได้ถูกต้อง 100% ต่างจากการสร้าง PDF ตรงๆ ที่มักมีปัญหาฟอนต์ภาษาไทย)'));
 }
 
 // ============================================================
