@@ -511,6 +511,17 @@ td.mono{font-family:var(--mono); font-size:12px;}
 .count-item .qty-input{margin-top:14px;}
 .count-item .qty-input label{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em;}
 .count-item .qty-row{display:flex; align-items:center; gap:8px; margin-top:6px;}
+.count-item .qty-add-row{display:flex; align-items:center; gap:8px; margin-top:8px;}
+.count-item .qty-add-row input{
+  flex:1; background:var(--surface2); border:1px dashed var(--border); border-radius:8px;
+  padding:9px 12px; color:var(--text); font-size:13.5px; font-family:var(--sans);
+}
+.count-item .qty-add-row input:focus{outline:2px solid var(--green); outline-offset:1px;}
+.count-item .qty-add-btn{
+  background:var(--green-bg); border:1px solid #1F4A2A; color:var(--green); font-weight:700; font-size:13px;
+  padding:9px 14px; border-radius:8px; cursor:pointer; white-space:nowrap;
+}
+.count-item .qty-add-btn:hover{filter:brightness(1.15);}
 .count-item .save-row{margin-top:12px;}
 .count-item .save-row .save-btn{
   width:100%; background:var(--amber); color:#1A1300; border:none; padding:11px; border-radius:9px; font-weight:700; font-size:13.5px; cursor:pointer;
@@ -1595,6 +1606,10 @@ async function renderMobile(container){
             <input class="qty-field" type="number" inputmode="decimal" value="${item.finalQty ?? 0}">
             <button class="qty-btn" data-act="plus" type="button">+</button>
           </div>
+          <div class="qty-add-row">
+            <input class="qty-add-field" type="number" inputmode="decimal" placeholder="เจอเพิ่มอีกกี่ชิ้น?">
+            <button class="qty-add-btn" type="button">➕ บวกเพิ่ม</button>
+          </div>
         </div>
         <div class="save-row"></div>
         <button class="exc-toggle" type="button">⚠️ พบผิดตำแหน่ง / ผิด LOT</button>
@@ -1631,6 +1646,15 @@ async function renderMobile(container){
       const field = card.querySelector('.qty-field');
       card.querySelector('[data-act=minus]').onclick = ()=>{ field.value = Math.max(0,(+field.value||0)-1); };
       card.querySelector('[data-act=plus]').onclick = ()=>{ field.value = (+field.value||0)+1; };
+      const addField = card.querySelector('.qty-add-field');
+      card.querySelector('.qty-add-btn').onclick = ()=>{
+        const addVal = +addField.value || 0;
+        if(addVal<=0){ addField.focus(); return; }
+        const before = +field.value || 0;
+        field.value = before + addVal;
+        toast(`บวกเพิ่ม ${num(addVal)} จาก ${num(before)} → รวม ${num(field.value)} ${item.unit}`);
+        addField.value = '';
+      };
       btnSave.onclick = async ()=>{
         btnSave.disabled = true; btnSave.textContent = 'กำลังบันทึก...';
         const qty = +field.value || 0;
