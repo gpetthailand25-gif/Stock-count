@@ -210,10 +210,12 @@ td.mono{font-family:var(--mono); font-size:12px;}
 /* ---- expiry / non-moving bucket cards ---- */
 .bucket-row{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px;}
 @media(max-width:1000px){.bucket-row{grid-template-columns:repeat(2,1fr);}}
-.bucket{border-radius:var(--radius); padding:14px; border:1px solid var(--border); background:var(--surface);}
+.bucket{border-radius:var(--radius); padding:14px; border:1px solid var(--border); background:var(--surface); cursor:pointer; transition:transform .1s, border-color .15s;}
+.bucket:hover{transform:translateY(-1px);}
+.bucket.selected{border-width:2px; box-shadow:0 0 0 1px currentColor inset;}
 .bucket .n{font-family:var(--mono); font-size:22px; font-weight:700;}
 .bucket .lbl{font-size:11.5px; color:var(--text-dim); margin-top:2px;}
-.bucket .v{font-size:11px; color:var(--text-faint); margin-top:6px; font-family:var(--mono);}
+.bucket .v{font-size:17px; color:var(--text); margin-top:6px; font-family:var(--mono); font-weight:700;}
 .bucket.urgent{border-color:#5C2020; background:var(--red-bg);}
 .bucket.urgent .n{color:var(--red);}
 .bucket.warn{border-color:var(--amber-dim); background:#2E2410;}
@@ -306,6 +308,33 @@ td.mono{font-family:var(--mono); font-size:12px;}
 }
 @keyframes spin{to{transform:rotate(360deg);}}
 .loading-screen .lt{font-family:var(--mono); font-size:12px; color:var(--text-faint);}
+
+.login-screen{
+  position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:998;
+}
+.login-card{
+  width:100%; max-width:320px; padding:32px 28px; background:var(--surface2); border:1px solid var(--border);
+  border-radius:14px; text-align:center;
+}
+.login-card .lc-title{font-weight:800; font-size:16px; color:var(--amber); margin-bottom:4px;}
+.login-card .lc-sub{font-size:12px; color:var(--text-faint); margin-bottom:20px;}
+.login-card input{
+  width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text);
+  padding:12px 14px; border-radius:9px; font-size:16px; font-family:var(--mono); text-align:center;
+  letter-spacing:.05em; box-sizing:border-box;
+}
+.login-card input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+.login-card button{
+  width:100%; margin-top:14px; padding:12px; border:none; border-radius:9px; background:var(--amber);
+  color:#1a1206; font-weight:700; font-size:14px; cursor:pointer;
+}
+.login-card button:hover{filter:brightness(1.08);}
+.login-card .lc-err{color:var(--red); font-size:12px; margin-top:10px; min-height:16px;}
+.identity-bar .logout-btn{
+  background:transparent; border:1px solid var(--border); color:var(--text-faint); font-size:11px;
+  padding:4px 10px; border-radius:6px; cursor:pointer; font-family:var(--sans);
+}
+.identity-bar .logout-btn:hover{color:var(--text); border-color:var(--text-faint);}
 
 .toast-stack{position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:1000;}
 .toast{
@@ -452,15 +481,20 @@ td.mono{font-family:var(--mono); font-size:12px;}
 }
 
 /* ---- mobile count screen v2: real responsive grid, no fake phone bezel ---- */
+.mobile-sticky-head{
+  position:sticky; z-index:5; background:var(--bg); padding-top:6px; margin-top:-6px;
+}
 .count-toolbar{
   display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;
-  position:sticky; top:0; background:var(--bg); padding:4px 0 8px 0; z-index:2;
+  padding:4px 0 8px 0;
 }
 .count-toolbar input{
-  flex:1; min-width:220px; background:var(--surface2); border:1px solid var(--border); border-radius:9px;
-  padding:11px 14px; color:var(--text); font-size:14px; font-family:var(--sans);
+  flex:1; min-width:220px; background:#132A2E; border:2px solid var(--teal, #17B0A8); border-radius:10px;
+  padding:13px 16px; color:#fff; font-size:15.5px; font-family:var(--sans); font-weight:600;
+  box-shadow:0 0 0 3px rgba(23,176,168,0.15);
 }
-.count-toolbar input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+.count-toolbar input::placeholder{color:#8FD8D3;}
+.count-toolbar input:focus{outline:none; border-color:#22D6CB; box-shadow:0 0 0 4px rgba(34,214,203,0.25);}
 .count-grid{
   display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px;
 }
@@ -468,10 +502,12 @@ td.mono{font-family:var(--mono); font-size:12px;}
   background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;
   display:flex; flex-direction:column;
 }
-.count-item .code{font-family:var(--mono); font-size:11px; color:var(--amber);}
-.count-item .name{font-weight:700; font-size:14.5px; margin-top:4px; line-height:1.35; min-height:2.7em;}
-.count-item .meta{display:flex; gap:16px; margin-top:10px; font-size:11.5px; color:var(--text-dim); flex-wrap:wrap;}
-.count-item .meta > div span{display:block; color:var(--text-faint); font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px;}
+.count-item .code{font-family:var(--mono); font-size:15px; font-weight:800; color:var(--amber);}
+.count-item .name{font-weight:700; font-size:18px; margin-top:6px; line-height:1.35;}
+.count-item .meta{display:flex; gap:16px; margin-top:12px; font-size:15px; color:var(--text); flex-wrap:wrap;}
+.count-item .meta > div{font-weight:700;}
+.count-item .meta > div span{display:block; color:var(--text-faint); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; font-weight:400;}
+.count-item .meta .sysqty{color:var(--blue); font-size:18px;}
 .count-item .qty-input{margin-top:14px;}
 .count-item .qty-input label{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em;}
 .count-item .qty-row{display:flex; align-items:center; gap:8px; margin-top:6px;}
@@ -526,6 +562,15 @@ td.mono{font-family:var(--mono); font-size:12px;}
 </head>
 <body>
 <div id="loadingScreen" class="loading-screen"><div class="spin"></div><div class="lt">กำลังโหลดข้อมูล...</div></div>
+<div id="loginScreen" class="login-screen" style="display:none;">
+  <div class="login-card">
+    <div class="lc-title">STOCKCOUNT / WMS</div>
+    <div class="lc-sub">กรอกรหัสพนักงานเพื่อเข้าใช้งาน</div>
+    <input id="loginCodeInput" type="text" placeholder="รหัสเข้าใช้งาน" autocomplete="off" />
+    <button id="loginSubmitBtn">เข้าสู่ระบบ</button>
+    <div id="loginError" class="lc-err"></div>
+  </div>
+</div>
 <div class="hazard"></div>
 <div class="identity-bar" id="identityBar"></div>
 <div class="app">
@@ -603,6 +648,16 @@ const nowStr = () => {
 const todayISO = ()=> new Date().toISOString().slice(0,10);
 
 let currentUser = 'พนักงาน';
+
+// รหัสเข้าใช้งานของพนักงาน (code -> ชื่อ) — เพิ่ม/แก้ไขคนได้ที่นี่
+const EMPLOYEES = {
+  'ACC01': 'พี่เหมียว',
+  'A-123': 'แอน',
+  'B-123': 'ดาว',
+  'C-123': 'บี',
+  'D-123': 'พลอย',
+};
+
 let BASE = null;          // master stock balance (shared, seeded once)
 let SEED_META = null;     // {filename, importedAt, importedBy, itemCount, mode} — describes current BASE version
 let IMPORT_HISTORY = [];  // log of every import ever run
@@ -671,6 +726,33 @@ async function logAudit(action, oldValue, newValue){
   await sSet('audit_log', AUDIT, true);
 }
 
+function waitForLogin(){
+  return new Promise(resolve=>{
+    const screen = document.getElementById('loginScreen');
+    const input = document.getElementById('loginCodeInput');
+    const btn = document.getElementById('loginSubmitBtn');
+    const err = document.getElementById('loginError');
+    screen.style.display = 'flex';
+    input.value = '';
+    err.textContent = '';
+    input.focus();
+    function attempt(){
+      const code = input.value.trim().toUpperCase();
+      const name = EMPLOYEES[code];
+      if(!name){
+        err.textContent = 'รหัสไม่ถูกต้อง กรุณาลองใหม่';
+        input.select();
+        return;
+      }
+      currentUser = name;
+      screen.style.display = 'none';
+      resolve();
+    }
+    btn.onclick = attempt;
+    input.onkeydown = (e)=>{ if(e.key==='Enter') attempt(); };
+  });
+}
+
 // ---------------- init ----------------
 async function init(){
   initFirestore();
@@ -692,8 +774,8 @@ async function init(){
   ROUNDS = await sGet('rounds', true) || [];
   AUDIT = await sGet('audit_log', true) || [];
 
-  const savedName = sessionStorageSafeGet();
-  if(savedName) currentUser = savedName;
+  document.getElementById('loadingScreen').style.display='none';
+  await waitForLogin();
 
   if(ROUNDS.length===0){
     await createRound(true); // auto-create current month's round so app isn't empty
@@ -919,7 +1001,7 @@ async function approveRound(roundId){
 // NAV / FILTERS / ROUTER  (mostly unchanged visual layer)
 // ============================================================
 const NAV = [
-  {group:'ภาพรวม', items:[{id:'dashboard', label:'Dashboard'},{id:'value', label:'มูลค่าสต็อก'}]},
+  {group:'ภาพรวม', items:[{id:'dashboard', label:'Dashboard'},{id:'value', label:'มูลค่าสต็อก'},{id:'exec', label:'สรุปรายงานผู้บริหาร'}]},
   {group:'วิเคราะห์ความเสี่ยง', items:[{id:'expiry', label:'สินค้าใกล้หมดอายุ'},{id:'nonmoving', label:'สินค้าไม่เคลื่อนไหว'}]},
   {group:'รอบนับสต็อก', items:[
     {id:'counts', label:'รอบการนับ'}, {id:'mobile', label:'หน้านับสต็อก (มือถือ)'},
@@ -930,10 +1012,11 @@ const NAV = [
 const TITLES = {
   dashboard: ['Dashboard', 'ภาพรวมความคืบหน้าการนับสต็อกสิ้นเดือน — ข้อมูลจริงจาก storage'],
   value: ['มูลค่าสต็อก', 'สรุปมูลค่าสต็อกทั้งหมด'],
+  exec: ['สรุปรายงานผู้บริหาร', 'ภาพรวมสำหรับผู้บริหาร — พิมพ์เป็น PDF ได้'],
   expiry: ['สินค้าใกล้หมดอายุ / หมดอายุ', 'เฉพาะกลุ่มวัตถุดิบที่ติดตามวันหมดอายุ'],
   nonmoving: ['สินค้าไม่เคลื่อนไหว', 'อิงจากวันที่เคลื่อนไหวล่าสุดในไฟล์ต้นทาง'],
   counts: ['รอบการนับสต็อก', 'สร้างรอบนับใหม่และติดตามสถานะ — บันทึกจริง'],
-  mobile: ['หน้านับสต็อกสำหรับพนักงาน', 'บันทึกจำนวนจริง ไม่แสดง System Qty'],
+  mobile: ['หน้านับสต็อกสำหรับพนักงาน', 'บันทึกจำนวนที่นับได้จริง พร้อมยอดคงเหลือในระบบ'],
   review: ['ตรวจสอบผลการนับ', 'เทียบยอดนับกับยอดระบบ ก่อนอนุมัติ'],
   variance: ['วิเคราะห์ผลต่าง (Stock Variance)', 'ของรอบนับที่เลือก'],
   audit: ['Audit Trail', 'ประวัติการแก้ไขทั้งหมดในระบบ (ล่าสุดก่อน)'],
@@ -961,10 +1044,12 @@ function renderIdentityBar(){
   const bar = document.getElementById('identityBar');
   bar.innerHTML = '';
   bar.appendChild(el('span','il','ผู้ใช้งาน:'));
-  const inp = document.createElement('input');
-  inp.value = currentUser;
-  inp.onchange = ()=>{ currentUser = inp.value.trim() || 'พนักงาน'; toast('เปลี่ยนชื่อผู้ใช้งานเป็น '+currentUser); };
-  bar.appendChild(inp);
+  bar.appendChild(el('span','','<b style="color:var(--text);">'+currentUser+'</b>'));
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'logout-btn';
+  logoutBtn.textContent = 'สลับผู้ใช้';
+  logoutBtn.onclick = async ()=>{ await waitForLogin(); renderIdentityBar(); toast('เข้าสู่ระบบเป็น '+currentUser); };
+  bar.appendChild(logoutBtn);
   const pill = el('div','rid-pill');
   pill.appendChild(el('span','','รอบที่ทำงานอยู่:'));
   const sel = document.createElement('select');
@@ -1121,9 +1206,124 @@ function varianceTable(rows){
   t.appendChild(tb); wrap.appendChild(t); return wrap;
 }
 
+// สร้างการ์ดสถานะขนาดใหญ่พร้อมอิโมจิ ✅/⚠️/❌ ให้ผู้บริหารดูปราดเดียวเข้าใจ
+function statusChip(level, emoji, label, detail){
+  // level: 'ok' (เขียว) | 'warn' (เหลือง) | 'urgent' (แดง)
+  const b = el('div','bucket '+level);
+  b.appendChild(el('div','n', emoji));
+  b.appendChild(el('div','lbl', label));
+  b.appendChild(el('div','v', detail));
+  return b;
+}
+
 // ============================================================
-// TAB: VALUE / EXPIRY / NONMOVING  (based on BASE, not round)
+// TAB: EXEC SUMMARY — สรุปรายงานสำหรับผู้บริหาร (พิมพ์ PDF ได้)
 // ============================================================
+async function renderExecSummary(container){
+  const items = filterBase(BASE);
+  const totalValue = items.reduce((a,i)=>a+i.sv,0);
+  const activeItems = items.filter(i=>i.active!==false);
+  const inactiveItems = items.filter(i=>i.active===false);
+
+  const expiryItems = items.filter(i=>i.et && i.cat==='วัตถุดิบ');
+  const expired = expiryItems.filter(i=>i.dte!=null && i.dte<0);
+  const near30 = expiryItems.filter(i=>i.dte!=null && i.dte>=0 && i.dte<=30);
+  const near60 = expiryItems.filter(i=>i.dte!=null && i.dte>30 && i.dte<=60);
+  const near90 = expiryItems.filter(i=>i.dte!=null && i.dte>60 && i.dte<=90);
+
+  container.appendChild(printHeader('สรุปรายงานสต็อกสำหรับผู้บริหาร (Executive Summary)'));
+  const titleRow = el('div','section-title','🚦 สรุปสถานะโดยรวม<div class="line"></div>');
+  container.appendChild(titleRow);
+  titleRow.appendChild(printButton('พิมพ์รายงานผู้บริหารเป็น PDF'));
+
+  // แถวสถานะใหญ่ ✅/⚠️/❌ — ดูปราดเดียวเข้าใจ ไม่ต้องอ่านตัวเลขละเอียด
+  const statusRow = el('div','bucket-row');
+  statusRow.appendChild(statusChip(
+    expired.length===0 ? 'ok' : 'urgent',
+    expired.length===0 ? '✅' : '❌',
+    'สินค้าหมดอายุ',
+    expired.length===0 ? 'ไม่มีรายการหมดอายุ' : `${num(expired.length)} รายการ (${money(expired.reduce((a,i)=>a+i.sv,0))})`
+  ));
+  statusRow.appendChild(statusChip(
+    near30.length===0 ? 'ok' : 'warn',
+    near30.length===0 ? '✅' : '⚠️',
+    'ใกล้หมดอายุ (30 วัน)',
+    near30.length===0 ? 'ไม่มีรายการใกล้หมดอายุ' : `${num(near30.length)} รายการ (${money(near30.reduce((a,i)=>a+i.sv,0))})`
+  ));
+  statusRow.appendChild(statusChip(
+    near60.length===0 ? 'ok' : 'watch',
+    near60.length===0 ? '✅' : '👀',
+    'ใกล้หมดอายุ (60 วัน)',
+    near60.length===0 ? 'ไม่มีรายการใกล้หมดอายุ' : `${num(near60.length)} รายการ (${money(near60.reduce((a,i)=>a+i.sv,0))})`
+  ));
+  statusRow.appendChild(statusChip(
+    near90.length===0 ? 'ok' : 'watch',
+    near90.length===0 ? '✅' : '👀',
+    'ใกล้หมดอายุ (90 วัน)',
+    near90.length===0 ? 'ไม่มีรายการใกล้หมดอายุ' : `${num(near90.length)} รายการ (${money(near90.reduce((a,i)=>a+i.sv,0))})`
+  ));
+  statusRow.appendChild(statusChip(
+    inactiveItems.length===0 ? 'ok' : 'warn',
+    inactiveItems.length===0 ? '✅' : '⚠️',
+    'สินค้าไม่เคลื่อนไหว',
+    inactiveItems.length===0 ? 'ไม่มีรายการ' : `${num(inactiveItems.length)} รายการ (${money(inactiveItems.reduce((a,i)=>a+i.sv,0))})`
+  ));
+  container.appendChild(statusRow);
+
+  container.appendChild(el('div','section-title','💰 ภาพรวมมูลค่าสต็อกทั้งหมด<div class="line"></div>'));
+  const grid = el('div','kpi-grid');
+  grid.appendChild(kpiCard('💰 มูลค่าสต็อกรวมทั้งหมด', money(totalValue)));
+  grid.appendChild(kpiCard('📦 จำนวนรายการทั้งหมด', num(items.length)));
+  grid.appendChild(kpiCard('✅ มูลค่าสินค้า Active', money(activeItems.reduce((a,i)=>a+i.sv,0)),'','green'));
+  grid.appendChild(kpiCard('❌ มูลค่าสินค้าไม่ Active', money(inactiveItems.reduce((a,i)=>a+i.sv,0)),'','red'));
+  container.appendChild(grid);
+
+  container.appendChild(el('div','section-title','⏰ ความเสี่ยงด้านวันหมดอายุ (เฉพาะวัตถุดิบ)<div class="line"></div>'));
+  const gridExp = el('div','kpi-grid');
+  gridExp.appendChild(kpiCard((expired.length===0?'✅':'❌')+' มูลค่าสินค้าหมดอายุแล้ว', money(expired.reduce((a,i)=>a+i.sv,0)),'','red'));
+  gridExp.appendChild(kpiCard((expired.length===0?'✅':'❌')+' จำนวนรายการหมดอายุแล้ว', num(expired.length),'','red'));
+  gridExp.appendChild(kpiCard((near30.length===0?'✅':'⚠️')+' มูลค่าใกล้หมดอายุ (≤30 วัน)', money(near30.reduce((a,i)=>a+i.sv,0)),'','amber'));
+  gridExp.appendChild(kpiCard((near30.length===0?'✅':'⚠️')+' จำนวนรายการใกล้หมดอายุ (≤30 วัน)', num(near30.length),'','amber'));
+  gridExp.appendChild(kpiCard((near60.length===0?'✅':'👀')+' มูลค่าใกล้หมดอายุ (31-60 วัน)', money(near60.reduce((a,i)=>a+i.sv,0)),'','blue'));
+  gridExp.appendChild(kpiCard((near60.length===0?'✅':'👀')+' จำนวนรายการใกล้หมดอายุ (31-60 วัน)', num(near60.length),'','blue'));
+  gridExp.appendChild(kpiCard((near90.length===0?'✅':'👀')+' มูลค่าใกล้หมดอายุ (61-90 วัน)', money(near90.reduce((a,i)=>a+i.sv,0)),'','blue'));
+  gridExp.appendChild(kpiCard((near90.length===0?'✅':'👀')+' จำนวนรายการใกล้หมดอายุ (61-90 วัน)', num(near90.length),'','blue'));
+  container.appendChild(gridExp);
+
+  container.appendChild(el('div','section-title','📉 สินค้าไม่เคลื่อนไหว (Active = N)<div class="line"></div>'));
+  const gridNM = el('div','kpi-grid');
+  gridNM.appendChild(kpiCard((inactiveItems.length===0?'✅':'⚠️')+' มูลค่าสินค้าไม่เคลื่อนไหว', money(inactiveItems.reduce((a,i)=>a+i.sv,0)),'','red'));
+  gridNM.appendChild(kpiCard((inactiveItems.length===0?'✅':'⚠️')+' จำนวนรายการไม่เคลื่อนไหว', num(inactiveItems.length),'','red'));
+  container.appendChild(gridNM);
+
+  if(ACTIVE_ROUND){
+    const round = ROUNDS.find(r=>r.id===ACTIVE_ROUND);
+    if(round){
+      const detail = filterDetail(await loadDetail(ACTIVE_ROUND));
+      const total = detail.length;
+      const counted = detail.filter(i=>i.status!=='uncounted');
+      const matched = detail.filter(i=>i.status==='matched');
+      const mismatched = detail.filter(i=>i.status==='mismatch');
+      const pctCounted = total? counted.length/total*100 : 0;
+      const pctAccuracy = counted.length? matched.length/counted.length*100 : 0;
+      const mismatchValue = mismatched.reduce((a,i)=>a+Math.abs((i.diff||0)*(i.unitCost||0)),0);
+      const accGood = pctAccuracy>=95, accWarn = pctAccuracy>=85 && pctAccuracy<95;
+      const accEmoji = accGood?'✅':(accWarn?'⚠️':'❌');
+      const countGood = pctCounted>=100;
+
+      container.appendChild(el('div','section-title',`📊 ความคืบหน้ารอบนับล่าสุด: ${round.id} · ${round.monthLabel} ${round.year}<div class="line"></div>`));
+      const gridRound = el('div','kpi-grid');
+      gridRound.appendChild(kpiCard((countGood?'✅':'⏳')+' % การนับสต็อกเสร็จสิ้น', pct(pctCounted),'','blue'));
+      gridRound.appendChild(kpiCard(accEmoji+' % ความถูกต้องของสต็อก', pct(pctAccuracy),'','green'));
+      gridRound.appendChild(kpiCard((mismatched.length===0?'✅':'❌')+' จำนวนรายการไม่ตรง', num(mismatched.length),'','red'));
+      gridRound.appendChild(kpiCard((mismatched.length===0?'✅':'❌')+' มูลค่าผลต่างรวม', money(mismatchValue),'','red'));
+      container.appendChild(gridRound);
+    }
+  } else {
+    container.appendChild(el('div','mini','ยังไม่มีรอบนับสต็อกที่ใช้งานอยู่ — ข้อมูลความคืบหน้าการนับจะแสดงเมื่อมีรอบนับ'));
+  }
+}
+
 function renderValue(container){
   const items = filterBase(BASE);
   const total = items.reduce((a,i)=>a+i.sv,0);
@@ -1196,18 +1396,32 @@ function renderValue(container){
   }
 }
 
+let expiryLevelFilter = null; // null = ทั้งหมด, หรือ 'expired'|'d7'|'d30'|'d60'|'d90'
+
 function renderExpiry(container){
-  const items = filterBase(BASE).filter(i=>i.et);
-  container.appendChild(el('div','section-title','Expiry Monitoring <span style="color:var(--text-faint); text-transform:none; font-weight:400;">— เฉพาะวัตถุดิบที่ติดตามวันหมดอายุ</span><div class="line"></div>'));
+  // เฉพาะประเภท "วัตถุดิบ" ที่มีวันหมดอายุเท่านั้น — บรรจุภัณฑ์ไม่มีวันหมดอายุ จึงไม่แสดงในหน้านี้
+  const items = filterBase(BASE).filter(i=>i.et && i.cat==='วัตถุดิบ');
+  container.appendChild(el('div','section-title','Expiry Monitoring <span style="color:var(--text-faint); text-transform:none; font-weight:400;">— เฉพาะประเภทวัตถุดิบที่มีวันหมดอายุเท่านั้น (ไม่รวมบรรจุภัณฑ์) · คลิกที่การ์ดเพื่อกรองระดับ</span><div class="line"></div>'));
   const buckets={expired:[],d7:[],d30:[],d60:[],d90:[]};
   items.forEach(i=>{ const d=i.dte; if(d==null) return;
     if(d<0) buckets.expired.push(i); else if(d<=7) buckets.d7.push(i); else if(d<=30) buckets.d30.push(i); else if(d<=60) buckets.d60.push(i); else if(d<=90) buckets.d90.push(i);
   });
   const row = el('div','bucket-row');
   [['expired','urgent','หมดอายุแล้ว',buckets.expired],['d7','urgent','ภายใน 7 วัน',buckets.d7],['d30','warn','ภายใน 30 วัน',buckets.d30],['d60','warn','ภายใน 60 วัน',buckets.d60],['d90','watch','ภายใน 90 วัน',buckets.d90]]
-  .forEach(([k,cls,label,arr])=>{ const b=el('div','bucket '+cls); b.appendChild(el('div','n',num(arr.length))); b.appendChild(el('div','lbl',label)); b.appendChild(el('div','v',money(arr.reduce((a,i)=>a+i.sv,0)))); row.appendChild(b); });
+  .forEach(([k,cls,label,arr])=>{
+    const b=el('div','bucket '+cls+(expiryLevelFilter===k?' selected':'')); b.appendChild(el('div','n',num(arr.length))); b.appendChild(el('div','lbl',label)); b.appendChild(el('div','v',money(arr.reduce((a,i)=>a+i.sv,0))));
+    b.onclick = ()=>{ expiryLevelFilter = (expiryLevelFilter===k) ? null : k; render(); };
+    row.appendChild(b);
+  });
   container.appendChild(row);
-  const all=[...buckets.expired,...buckets.d7,...buckets.d30,...buckets.d60,...buckets.d90].sort((a,b)=>a.dte-b.dte);
+  if(expiryLevelFilter){
+    const clearBtn = el('button','print-btn no-print','✕ ล้างตัวกรองระดับ');
+    clearBtn.style.marginBottom='14px';
+    clearBtn.onclick = ()=>{ expiryLevelFilter=null; render(); };
+    container.appendChild(clearBtn);
+  }
+  let all = expiryLevelFilter ? buckets[expiryLevelFilter] : [...buckets.expired,...buckets.d7,...buckets.d30,...buckets.d60,...buckets.d90];
+  all = all.slice().sort((a,b)=>a.dte-b.dte);
   container.appendChild(el('div','section-title','รายละเอียด<div class="line"></div>'));
   const wrap=el('div','table-wrap'); const t=el('table');
   t.innerHTML=`<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>LOT/วันหมดอายุ</th><th class="num">เหลือ(วัน)</th><th>Location</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">มูลค่า</th><th>ระดับ</th></tr></thead>`;
@@ -1331,11 +1545,20 @@ function renderCounts(container){
 async function renderMobile(container){
   if(!ACTIVE_ROUND){ container.appendChild(emptyState('ยังไม่มีรอบนับ','ไปสร้างรอบนับก่อนที่แท็บ "รอบการนับ"')); return; }
   const round = ROUNDS.find(r=>r.id===ACTIVE_ROUND);
-  container.appendChild(el('div','section-title',`นับสต็อก — รอบ ${round.id} <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">${round.location} · ไม่แสดง System Qty</span><div class="line"></div>`));
+
+  const stickyHead = el('div','mobile-sticky-head');
+  container.appendChild(stickyHead);
+  stickyHead.appendChild(el('div','section-title',`นับสต็อก — รอบ ${round.id} <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">${round.location}</span><div class="line"></div>`));
 
   const toolbar = el('div','count-toolbar');
-  toolbar.innerHTML = `<input id="mobileSearch" placeholder="ค้นหา Product Code / ชื่อสินค้า / LOT / Location...">`;
-  container.appendChild(toolbar);
+  toolbar.innerHTML = `<input id="mobileSearch" placeholder="🔍 ค้นหา Product Code / ชื่อสินค้า / LOT / Location...">`;
+  stickyHead.appendChild(toolbar);
+  // ตั้งตำแหน่ง sticky ให้อยู่ใต้ topbar หลักพอดี ไม่ทับกัน (วัดความสูง topbar จริงเพราะอาจไม่คงที่ในทุกขนาดจอ)
+  requestAnimationFrame(()=>{
+    const topbar = document.querySelector('.topbar');
+    if(topbar) stickyHead.style.top = topbar.offsetHeight + 'px';
+  });
+
   const resultsBox = el('div','count-grid'); resultsBox.id='mobileResults';
   container.appendChild(resultsBox);
 
@@ -1362,6 +1585,7 @@ async function renderMobile(container){
           <div><span>LOT</span>${item.exp||'-'}</div>
           <div><span>หน่วย</span>${item.unit}</div>
           <div><span>Location</span>${item.loc}</div>
+          <div class="sysqty"><span>ยอดคงเหลือในระบบ</span>${num(item.systemQty)} ${item.unit}</div>
         </div>
         ${item.status!=='uncounted' ? `<div class="recount-flag">${item.status==='matched'?'✅ นับแล้ว ตรงกับระบบ':'⚠️ นับแล้ว ไม่ตรง — แตะเพื่อนับซ้ำ'}</div>` : ''}
         <div class="qty-input">
@@ -2089,7 +2313,7 @@ async function render(){
   content.appendChild(section);
   const fn = {dashboard:renderDashboard, value:renderValue, expiry:renderExpiry, nonmoving:renderNonMoving,
     counts:renderCounts, mobile:renderMobile, review:renderReview, variance:renderVariance, audit:renderAudit,
-    import:renderImport, export:renderExport}[state.tab];
+    import:renderImport, export:renderExport, exec:renderExecSummary}[state.tab];
   await fn(section);
   renderIdentityBar();
 }
