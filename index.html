@@ -553,6 +553,26 @@ td.mono{font-family:var(--mono); font-size:12px;}
 }
 .count-toolbar input::placeholder{color:#8FD8D3;}
 .count-toolbar input:focus{outline:none; border-color:#22D6CB; box-shadow:0 0 0 4px rgba(34,214,203,0.25);}
+.count-toolbar input[readonly]{cursor:pointer;}
+
+.code-keypad{
+  width:100%; max-width:320px; margin:0 auto; display:grid; gap:8px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px; box-shadow:var(--shadow-md); position:relative; z-index:6;
+}
+.kp-row{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.kp-btn{
+  padding:16px 0; font-size:20px; font-weight:700; font-family:var(--mono);
+  background:var(--surface3); border:1px solid var(--border); border-radius:var(--radius-sm);
+  color:var(--text); cursor:pointer; transition:background .12s var(--ease);
+}
+.kp-btn:active{background:var(--amber); color:#1A1300;}
+.kp-clear, .kp-back{font-size:14px; font-family:var(--sans); color:var(--text-dim);}
+.kp-done{
+  margin-top:4px; padding:12px; border:none; border-radius:var(--radius-sm);
+  background:linear-gradient(160deg, var(--amber-soft), var(--amber)); color:#1A1300;
+  font-weight:700; font-size:14px; cursor:pointer;
+}
 .count-grid{
   display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px,100%),1fr)); gap:14px;
   width:100%; max-width:100%;
@@ -1081,6 +1101,37 @@ async function resolveException(roundId, excId, action, note){
     await logAudit(`เพิ่มสต็อกใหม่จาก Unknown LOT ${exc.code}`, '-', `${exc.foundExp||'-'} จำนวน=${exc.foundQty}`);
   }
   await logAudit(`ดำเนินการรายงานผิดปกติ (${action}) ${exc.code}`, 'pending', 'resolved');
+}
+
+// ย้อนรายงานที่ "ยืนยันไปแล้ว" (resolved) กลับเป็น "รอดำเนินการ" (pending) พร้อมย้อนผลที่เคยอัปเดตเข้า Stock Balance ไปแล้ว
+// ใช้ตอนพบว่ากดยืนยันไปแล้วแต่ข้อมูลที่บันทึก (LOT/Location/จำนวน) ผิด จะได้แก้ไขแล้วยืนยันใหม่ให้ถูกต้อง
+async function reverseException(roundId, excId){
+  const list = await loadExceptions(roundId);
+  const exc = list.find(e=>e.id===excId);
+  if(!exc || exc.status!=='resolved') return false;
+  const action = (exc.resolution||'').split(' — ')[0];
+  if(action==='transfer_location'){
+    const rec = BASE.find(i=> i.c===exc.code && i.exp===exc.origExp && i.loc===exc.foundLoc);
+    if(rec){ const from=rec.loc; rec.loc = exc.origLoc; await sSet('seed_v1', BASE, true); await logAudit(`ย้อนกลับตำแหน่ง Stock Balance ${exc.code}`, from, exc.origLoc); }
+  } else if(action==='add_new_lot'){
+    const idx = BASE.findIndex(i=> i.c===exc.code && i.exp===exc.foundExp && i.loc===(exc.foundLoc||exc.origLoc) && i.qty===exc.foundQty && i.lmt==='ปรับปรุง');
+    if(idx>=0){ BASE.splice(idx,1); await sSet('seed_v1', BASE, true); await logAudit(`ลบสต็อกที่เพิ่มผิดจาก Unknown LOT ${exc.code}`, `${exc.foundExp||'-'} จำนวน=${exc.foundQty}`, '-'); }
+  }
+  exc.status = 'pending'; exc.resolution=''; exc.resolvedBy=null; exc.resolvedAt=null;
+  await saveExceptions(roundId);
+  await logAudit(`ย้อนสถานะรายงานผิดปกติกลับเป็นรอดำเนินการ (แก้ไขข้อมูล) ${exc.code}`, 'resolved', 'pending');
+  return true;
+}
+// แก้ไขข้อมูลที่แจ้งผิด (LOT/Location/จำนวน/หมายเหตุ) — ใช้ได้เฉพาะรายการที่ยังเป็น pending เท่านั้น
+async function editException(roundId, excId, updates){
+  const list = await loadExceptions(roundId);
+  const exc = list.find(e=>e.id===excId);
+  if(!exc || exc.status!=='pending') return false;
+  const before = `${exc.foundLoc} / ${exc.foundExp||'-'} / ${exc.foundQty}`;
+  Object.assign(exc, updates);
+  await saveExceptions(roundId);
+  await logAudit(`แก้ไขรายงานผิดปกติ ${exc.code}`, before, `${exc.foundLoc} / ${exc.foundExp||'-'} / ${exc.foundQty}`);
+  return true;
 }
 
 async function approveRound(roundId){
@@ -1668,8 +1719,31 @@ async function renderMobile(container){
   stickyHead.appendChild(el('div','section-title',`นับสต็อก — รอบ ${round.id} <span class="mini" style="margin-left:6px; text-transform:none; font-weight:400;">${round.location}</span><div class="line"></div>`));
 
   const toolbar = el('div','count-toolbar');
-  toolbar.innerHTML = `<input id="mobileSearchCode" type="number" inputmode="numeric" placeholder="🔢 ค้นหาด้วยรหัสสินค้า...">
-    <input id="mobileSearchText" placeholder="🔍 ค้นหาชื่อ/LOT/Location...">`;
+  toolbar.innerHTML = `<input id="mobileSearchCode" type="text" inputmode="none" readonly placeholder="🔢 ค้นหาด้วยรหัสสินค้า...">
+    <input id="mobileSearchText" placeholder="🔍 ค้นหาชื่อ/LOT/Location...">
+    <div id="codeKeypad" class="code-keypad" style="display:none;">
+      <div class="kp-row">
+        <button type="button" class="kp-btn" data-k="1">1</button>
+        <button type="button" class="kp-btn" data-k="2">2</button>
+        <button type="button" class="kp-btn" data-k="3">3</button>
+      </div>
+      <div class="kp-row">
+        <button type="button" class="kp-btn" data-k="4">4</button>
+        <button type="button" class="kp-btn" data-k="5">5</button>
+        <button type="button" class="kp-btn" data-k="6">6</button>
+      </div>
+      <div class="kp-row">
+        <button type="button" class="kp-btn" data-k="7">7</button>
+        <button type="button" class="kp-btn" data-k="8">8</button>
+        <button type="button" class="kp-btn" data-k="9">9</button>
+      </div>
+      <div class="kp-row">
+        <button type="button" class="kp-btn kp-clear" data-k="clear">✕ ล้าง</button>
+        <button type="button" class="kp-btn" data-k="0">0</button>
+        <button type="button" class="kp-btn kp-back" data-k="back">⌫</button>
+      </div>
+      <button type="button" class="kp-done">เสร็จสิ้น</button>
+    </div>`;
   stickyHead.appendChild(toolbar);
   // ตั้งตำแหน่ง sticky ให้อยู่ใต้ topbar หลักพอดี ไม่ทับกัน (วัดความสูง topbar จริงเพราะอาจไม่คงที่ในทุกขนาดจอ)
   requestAnimationFrame(()=>{
@@ -1819,9 +1893,24 @@ async function renderMobile(container){
   }
   renderList('','');
   setTimeout(()=>{
-    noWheelChange(document.getElementById('mobileSearchCode'));
-    document.getElementById('mobileSearchCode').oninput = (e)=> renderList(e.target.value, document.getElementById('mobileSearchText').value);
-    document.getElementById('mobileSearchText').oninput = (e)=> renderList(document.getElementById('mobileSearchCode').value, e.target.value);
+    const codeInput = document.getElementById('mobileSearchCode');
+    const textInput = document.getElementById('mobileSearchText');
+    const keypad = document.getElementById('codeKeypad');
+    const openKeypad = ()=>{ keypad.style.display='grid'; };
+    const closeKeypad = ()=>{ keypad.style.display='none'; };
+    codeInput.addEventListener('click', openKeypad);
+    codeInput.addEventListener('focus', openKeypad);
+    keypad.querySelectorAll('.kp-btn').forEach(btn=>{
+      btn.onclick = ()=>{
+        const k = btn.dataset.k;
+        if(k==='back') codeInput.value = codeInput.value.slice(0,-1);
+        else if(k==='clear') codeInput.value = '';
+        else codeInput.value += k;
+        renderList(codeInput.value, textInput.value);
+      };
+    });
+    keypad.querySelector('.kp-done').onclick = closeKeypad;
+    textInput.oninput = (e)=> renderList(codeInput.value, e.target.value);
   },0);
 }
 
@@ -1857,6 +1946,7 @@ async function renderReview(container){
     const ewrap = el('div','table-wrap'); const et2 = el('table');
     et2.innerHTML = `<thead><tr><th>ประเภท</th><th>Product</th><th>ชื่อสินค้า</th><th>ตำแหน่ง/LOT เดิม</th><th>ที่เจอจริง</th><th class="num">จำนวน</th><th>แจ้งโดย</th><th>สถานะ</th><th>การดำเนินการ</th></tr></thead>`;
     const etb = el('tbody');
+    const allLocs = [...new Set(BASE.map(i=>i.loc))].sort();
     exceptions.forEach(exc=>{
       const tr = el('tr');
       const typeLabel = exc.type==='location_mismatch' ? '📍 ผิดตำแหน่ง' : '🏷️ ผิด LOT';
@@ -1865,6 +1955,27 @@ async function renderReview(container){
       tr.innerHTML = `<td class="mini">${typeLabel}</td><td class="mono">${exc.code}</td><td class="prodname" title="${exc.name}">${exc.name}</td>
         <td class="mono">${origStr}</td><td class="mono">${foundStr}</td><td class="num mono">${num(exc.foundQty)}</td>
         <td class="mini">${exc.reportedBy}<br><span style="color:var(--text-faint)">${exc.reportedAt}</span></td><td></td><td></td>`;
+      const editRow = el('tr'); editRow.style.display='none';
+      const editTd = el('td'); editTd.colSpan = 9; editTd.style.cssText='background:var(--surface2); padding:14px;';
+      editTd.innerHTML = `
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div><label class="mini" style="display:block; margin-bottom:4px; color:var(--text-faint);">Location ที่เจอจริง</label><select class="edit-loc"></select></div>
+          <div><label class="mini" style="display:block; margin-bottom:4px; color:var(--text-faint);">วันหมดอายุ/LOT ที่เจอจริง</label><input type="date" class="edit-lot" value="${exc.foundExp||''}"></div>
+          <div><label class="mini" style="display:block; margin-bottom:4px; color:var(--text-faint);">จำนวนที่เจอจริง</label><input type="number" class="edit-qty" value="${exc.foundQty}" style="width:100px;"></div>
+          <button class="btn btn-primary edit-save">บันทึกการแก้ไข</button>
+          <button class="btn edit-cancel">ยกเลิก</button>
+        </div>`;
+      editRow.appendChild(editTd);
+      const locSelEdit = editTd.querySelector('.edit-loc');
+      allLocs.forEach(l=>{ const o=document.createElement('option'); o.value=l; o.textContent=l; if(l===exc.foundLoc) o.selected=true; locSelEdit.appendChild(o); });
+      editTd.querySelector('.edit-cancel').onclick = ()=>{ editRow.style.display='none'; };
+      editTd.querySelector('.edit-save').onclick = async ()=>{
+        const newLoc = locSelEdit.value;
+        const newLot = editTd.querySelector('.edit-lot').value;
+        const newQty = +editTd.querySelector('.edit-qty').value || 0;
+        await editException(ACTIVE_ROUND, exc.id, {foundLoc:newLoc, foundExp: exc.type==='unknown_lot'?newLot:exc.foundExp, foundQty:newQty});
+        toast('บันทึกการแก้ไขแล้ว','success'); render();
+      };
       if(exc.status==='pending'){
         tr.children[7].appendChild(statusBadge('pending'));
         const actions = el('div','',''); actions.style.cssText='display:flex; gap:6px; flex-wrap:wrap;';
@@ -1879,12 +1990,26 @@ async function renderReview(container){
           b2.onclick = async ()=>{ b2.disabled=true; await resolveException(ACTIVE_ROUND, exc.id, 'reject'); toast('บันทึกการปฏิเสธแล้ว','success'); render(); };
           actions.appendChild(b1); actions.appendChild(b2);
         }
+        const editBtn = el('button','btn','✏️ แก้ไข');
+        editBtn.onclick = ()=>{ editRow.style.display = editRow.style.display==='none' ? '' : 'none'; };
+        actions.appendChild(editBtn);
         tr.children[8].appendChild(actions);
       } else {
         tr.children[7].appendChild(statusBadge('resolved'));
-        tr.children[8].innerHTML = `<span class="mini">${exc.resolution}</span>`;
+        const resolvedWrap = el('div','',''); resolvedWrap.style.cssText='display:flex; flex-direction:column; gap:6px; align-items:flex-start;';
+        resolvedWrap.appendChild(el('span','mini',exc.resolution));
+        const undoBtn = el('button','btn btn-danger','↩️ พบว่าบันทึกผิด แก้ไขใหม่');
+        undoBtn.onclick = async ()=>{
+          undoBtn.disabled=true; undoBtn.textContent='กำลังย้อนกลับ...';
+          const ok = await reverseException(ACTIVE_ROUND, exc.id);
+          if(ok){ toast('ย้อนสถานะกลับเป็นรอดำเนินการแล้ว แก้ไขข้อมูลแล้วยืนยันใหม่ได้เลย','success'); render(); }
+          else { toast('ย้อนสถานะไม่สำเร็จ','error'); undoBtn.disabled=false; undoBtn.textContent='↩️ พบว่าบันทึกผิด แก้ไขใหม่'; }
+        };
+        resolvedWrap.appendChild(undoBtn);
+        tr.children[8].appendChild(resolvedWrap);
       }
       etb.appendChild(tr);
+      etb.appendChild(editRow);
     });
     et2.appendChild(etb); ewrap.appendChild(et2); container.appendChild(ewrap);
   }
