@@ -1236,6 +1236,42 @@ function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.clas
 // ใช้วิธี blur() ออกจากช่องตอนสครอล (ไม่ preventDefault) เพื่อให้หน้าเว็บยังเลื่อนได้ปกติ ไม่ค้างอยู่ที่ช่อง
 function noWheelChange(input){ if(input) input.addEventListener('wheel', ()=>{ if(document.activeElement===input) input.blur(); }, {passive:true}); }
 
+// ---------------- คลิกหัวตารางเพื่อเรียงลำดับคอลัมน์ (ใช้ร่วมกันได้ทุกหน้า) ----------------
+// จำสถานะการเรียง (คอลัมน์ + ทิศทาง) แยกตาม pageKey เพื่อให้แต่ละหน้าเรียงอิสระจากกัน
+const SORT_STATE = {};
+function getSort(pageKey){ return SORT_STATE[pageKey] || (SORT_STATE[pageKey]={key:null, dir:1}); }
+// สร้างสตริง <th> ที่คลิกเรียงได้ — คลิกครั้งแรก = น้อย→มาก, คลิกซ้ำ = มาก→น้อย
+function sortableTh(label, colKey, pageKey, numeric){
+  const s = getSort(pageKey);
+  const active = s.key===colKey;
+  const arrow = active ? (s.dir===1?' ▲':' ▼') : ' ⇅';
+  return `<th class="${numeric?'num ':''}sortable-th" data-sortkey="${colKey}" data-pagekey="${pageKey}" style="cursor:pointer; user-select:none;">${label}<span style="color:${active?'var(--amber)':'var(--text-faint)'}; font-size:9px;">${arrow}</span></th>`;
+}
+// ผูกคลิกให้ทุก th.sortable-th ภายใน element ที่กำหนด แล้วเรียก onSortChange (ปกติคือ render() เพื่อวาดหน้าใหม่)
+function wireSortableHeaders(rootEl, onSortChange){
+  rootEl.querySelectorAll('.sortable-th').forEach(th=>{
+    th.onclick = ()=>{
+      const pageKey = th.dataset.pagekey, colKey = th.dataset.sortkey;
+      const s = getSort(pageKey);
+      if(s.key===colKey) s.dir *= -1; else { s.key = colKey; s.dir = 1; }
+      onSortChange();
+    };
+  });
+}
+// เรียง array ตามสถานะการเรียงปัจจุบันของ pageKey นั้น — getters คือ { colKey: item=>value }
+function applySorting(items, pageKey, getters){
+  const s = getSort(pageKey);
+  if(!s.key || !getters[s.key]) return items;
+  const getter = getters[s.key];
+  return items.slice().sort((a,b)=>{
+    const va = getter(a), vb = getter(b);
+    if(va==null && vb==null) return 0;
+    if(va==null) return 1*s.dir; if(vb==null) return -1*s.dir;
+    if(typeof va === 'string') return va.localeCompare(vb) * s.dir;
+    return (va-vb) * s.dir;
+  });
+}
+
 // สร้างหัวรายงานสำหรับพิมพ์ PDF (แสดงเฉพาะตอนพิมพ์ ผ่าน CSS @media print)
 function printHeader(title){
   const h = el('div','print-header');
@@ -1399,17 +1435,23 @@ async function renderDashboard(container){
 
   container.appendChild(el('div','section-title','Top 10 Variance (ตามมูลค่า)<div class="line"></div>'));
   const top10 = mismatched.slice().sort((a,b)=>Math.abs(b.effDiff*b.unitCost)-Math.abs(a.effDiff*a.unitCost)).slice(0,10);
-  container.appendChild(varianceTable(top10));
+  container.appendChild(varianceTable(top10, 'dashboard-top10'));
 }
 function statusBadge2(s){ const b=el('span','badge badge-'+statusBadgeKind(s), `<span class="dot"></span>${statusLabel(s)}`); return b; }
 function emptyState(title, sub){ const e=el('div','empty-state'); e.innerHTML=`<div class="icon">▤</div><div style="font-weight:600; color:var(--text-dim);">${title}</div><div style="margin-top:4px;">${sub}</div>`; return e; }
 
-function varianceTable(rows){
+function varianceTable(rows, pageKey){
+  pageKey = pageKey || 'variance';
   const wrap = el('div','table-wrap');
   const t = el('table');
-  t.innerHTML = `<thead><tr><th>Product</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">System Qty</th><th class="num">Count Qty</th><th class="num">Diff</th><th class="num">มูลค่าผลต่าง</th><th>สถานะ</th><th>เหตุผล</th></tr></thead>`;
+  t.innerHTML = `<thead><tr>${sortableTh('Product','code',pageKey)}${sortableTh('ชื่อสินค้า','name',pageKey)}${sortableTh('LOT','exp',pageKey)}${sortableTh('Location','loc',pageKey)}${sortableTh('System Qty','systemQty',pageKey,true)}${sortableTh('Count Qty','effQty',pageKey,true)}${sortableTh('Diff','effDiff',pageKey,true)}${sortableTh('มูลค่าผลต่าง','diffValue',pageKey,true)}<th>สถานะ</th><th>เหตุผล</th></tr></thead>`;
   const tb = el('tbody');
-  rows.forEach(i=>{
+  const sortedRows = applySorting(rows, pageKey, {
+    code:i=>i.code, name:i=>i.name, exp:i=>i.exp||'', loc:i=>i.loc, systemQty:i=>i.systemQty,
+    effQty:i=>(i.effQty!==undefined?i.effQty:i.finalQty), effDiff:i=>(i.effDiff!==undefined?i.effDiff:i.diff),
+    diffValue:i=>(i.effDiff!==undefined?i.effDiff:i.diff)*i.unitCost,
+  });
+  sortedRows.forEach(i=>{
     // ใช้ยอด/สถานะที่รวม exception แล้วถ้ามี (effQty/effDiff/effStatus) ไม่งั้น fallback เป็นค่าดิบ
     const qty = i.effQty!==undefined ? i.effQty : i.finalQty;
     const diff = i.effDiff!==undefined ? i.effDiff : i.diff;
@@ -1424,7 +1466,9 @@ function varianceTable(rows){
     tr.children[8].appendChild(statusBadge(status));
     tb.appendChild(tr);
   });
-  t.appendChild(tb); wrap.appendChild(t); return wrap;
+  t.appendChild(tb); wrap.appendChild(t);
+  wireSortableHeaders(t, render);
+  return wrap;
 }
 
 // สร้างการ์ดสถานะขนาดใหญ่พร้อมอิโมจิ ✅/⚠️/❌ ให้ผู้บริหารดูปราดเดียวเข้าใจ
@@ -1574,15 +1618,18 @@ function renderValue(container){
   if(inactiveItems.length>0){
     const wrapInactive = el('div','table-wrap');
     const tInactive = el('table');
-    tInactive.innerHTML = `<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>หมวดหมู่</th><th>Location</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">มูลค่า</th></tr></thead>`;
+    tInactive.innerHTML = `<thead><tr>${sortableTh('รหัส','c','value-inactive')}${sortableTh('ชื่อสินค้า','n','value-inactive')}${sortableTh('หมวดหมู่','cat','value-inactive')}${sortableTh('Location','loc','value-inactive')}${sortableTh('จำนวน','qty','value-inactive',true)}${sortableTh('หน่วย','u','value-inactive')}${sortableTh('มูลค่า','sv','value-inactive',true)}</tr></thead>`;
     const tbInactive = el('tbody');
-    inactiveItems.slice().sort((a,b)=>b.sv-a.sv).forEach(i=>{
+    const sortedInactive = applySorting(inactiveItems, 'value-inactive', {c:i=>i.c,n:i=>i.n,cat:i=>i.cat||'',loc:i=>i.loc,qty:i=>i.qty,u:i=>i.u,sv:i=>i.sv});
+    const finalInactive = getSort('value-inactive').key ? sortedInactive : inactiveItems.slice().sort((a,b)=>b.sv-a.sv);
+    finalInactive.forEach(i=>{
       const tr=el('tr');
       tr.innerHTML = `<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td>${i.cat||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.sv)}</td>`;
       tbInactive.appendChild(tr);
     });
     tInactive.appendChild(tbInactive); wrapInactive.appendChild(tInactive);
-    container.appendChild(el('div','mini','รายการสินค้าไม่ Active (เรียงตามมูลค่าสูงสุด)'));
+    wireSortableHeaders(tInactive, render);
+    container.appendChild(el('div','mini','รายการสินค้าไม่ Active (คลิกหัวตารางเพื่อเรียงลำดับ)'));
     container.appendChild(wrapInactive);
   }
 
@@ -1644,10 +1691,11 @@ function renderExpiry(container){
     container.appendChild(clearBtn);
   }
   let all = expiryLevelFilter ? buckets[expiryLevelFilter] : [...buckets.expired,...buckets.d7,...buckets.d30,...buckets.d60,...buckets.d90];
-  all = all.slice().sort((a,b)=>a.dte-b.dte);
-  container.appendChild(el('div','section-title','รายละเอียด<div class="line"></div>'));
+  all = applySorting(all, 'expiry', {c:i=>i.c,n:i=>i.n,exp:i=>i.exp||'',dte:i=>i.dte,loc:i=>i.loc,qty:i=>i.qty,u:i=>i.u,sv:i=>i.sv});
+  if(!getSort('expiry').key) all = all.slice().sort((a,b)=>a.dte-b.dte);
+  container.appendChild(el('div','section-title','รายละเอียด <span class="mini" style="text-transform:none; font-weight:400;">คลิกหัวตารางเพื่อเรียงลำดับ</span><div class="line"></div>'));
   const wrap=el('div','table-wrap'); const t=el('table');
-  t.innerHTML=`<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>LOT/วันหมดอายุ</th><th class="num">เหลือ(วัน)</th><th>Location</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">มูลค่า</th><th>ระดับ</th></tr></thead>`;
+  t.innerHTML=`<thead><tr>${sortableTh('รหัส','c','expiry')}${sortableTh('ชื่อสินค้า','n','expiry')}${sortableTh('LOT/วันหมดอายุ','exp','expiry')}${sortableTh('เหลือ(วัน)','dte','expiry',true)}${sortableTh('Location','loc','expiry')}${sortableTh('จำนวน','qty','expiry',true)}${sortableTh('หน่วย','u','expiry')}${sortableTh('มูลค่า','sv','expiry',true)}<th>ระดับ</th></tr></thead>`;
   const tb=el('tbody');
   all.forEach(i=>{
     let lvl='watch',lbl='ปกติ';
@@ -1659,6 +1707,7 @@ function renderExpiry(container){
     tb.appendChild(tr);
   });
   t.appendChild(tb); wrap.appendChild(t); container.appendChild(wrap);
+  wireSortableHeaders(t, render);
 }
 
 // สินค้าไม่เคลื่อนไหว: อิงจากคอลัมน์ Active (N) ในไฟล์นำเข้า ไม่ใช้วันที่เคลื่อนไหวล่าสุด (dsm)
@@ -1675,12 +1724,14 @@ function renderNonMoving(container){
   row.appendChild(b);
   container.appendChild(row);
   if(inactive.length===0){ container.appendChild(emptyState('ไม่มีรายการที่ Active=N ในตัวกรองนี้','')); return; }
-  container.appendChild(el('div','section-title','รายละเอียด <span style="color:var(--text-faint); text-transform:none; font-weight:400;">เรียงจากมูลค่าสูงสุด</span><div class="line"></div>'));
+  container.appendChild(el('div','section-title','รายละเอียด <span class="mini" style="color:var(--text-faint); text-transform:none; font-weight:400;">คลิกหัวตารางเพื่อเรียงลำดับ</span><div class="line"></div>'));
   const wrap=el('div','table-wrap'); const t=el('table');
-  t.innerHTML=`<thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">Stock Qty</th><th>หน่วย</th><th class="num">Unit Cost</th><th class="num">Stock Value</th><th>Last Movement</th></tr></thead>`;
+  t.innerHTML=`<thead><tr>${sortableTh('รหัส','c','nonmoving')}${sortableTh('ชื่อสินค้า','n','nonmoving')}${sortableTh('LOT','exp','nonmoving')}${sortableTh('Location','loc','nonmoving')}${sortableTh('Stock Qty','qty','nonmoving',true)}${sortableTh('หน่วย','u','nonmoving')}${sortableTh('Unit Cost','uc','nonmoving',true)}${sortableTh('Stock Value','sv','nonmoving',true)}${sortableTh('Last Movement','lmd','nonmoving')}</tr></thead>`;
   const tb=el('tbody');
-  inactive.forEach(i=>{ const tr=el('tr'); tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${fmtDateTH(i.exp)||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.uc)}</td><td class="num mono">${money(i.sv)}</td><td class="mono">${i.lmd} <span style="color:var(--text-faint)">(${i.lmt})</span></td>`; tb.appendChild(tr); });
+  const sortedInactive = applySorting(inactive, 'nonmoving', {c:i=>i.c,n:i=>i.n,exp:i=>i.exp||'',loc:i=>i.loc,qty:i=>i.qty,u:i=>i.u,uc:i=>i.uc,sv:i=>i.sv,lmd:i=>i.lmd||''});
+  sortedInactive.forEach(i=>{ const tr=el('tr'); tr.innerHTML=`<td class="mono">${i.c}</td><td class="prodname" title="${i.n}">${i.n}</td><td class="mono">${fmtDateTH(i.exp)||'-'}</td><td>${i.loc}</td><td class="num mono">${num(i.qty)}</td><td>${i.u}</td><td class="num mono">${money(i.uc)}</td><td class="num mono">${money(i.sv)}</td><td class="mono">${i.lmd} <span style="color:var(--text-faint)">(${i.lmt})</span></td>`; tb.appendChild(tr); });
   t.appendChild(tb); wrap.appendChild(t); container.appendChild(wrap);
+  wireSortableHeaders(t, render);
 }
 
 // ============================================================
@@ -2139,10 +2190,11 @@ async function renderReview(container){
   };
 
   const wrap = el('div','table-wrap'); const t = el('table');
-  t.innerHTML = `<thead><tr><th>Product</th><th>ชื่อสินค้า</th><th>LOT</th><th>Location</th><th class="num">System Qty</th><th class="num">Count Qty</th><th class="num">Diff</th><th>สถานะ</th><th>เหตุผล</th></tr></thead>`;
+  t.innerHTML = `<thead><tr>${sortableTh('Product','code','review')}${sortableTh('ชื่อสินค้า','name','review')}${sortableTh('LOT','exp','review')}${sortableTh('Location','loc','review')}${sortableTh('System Qty','systemQty','review',true)}${sortableTh('Count Qty','effQty','review',true)}${sortableTh('Diff','effDiff','review',true)}<th>สถานะ</th><th>เหตุผล</th></tr></thead>`;
   const tb = el('tbody');
-  const sorted = counted.slice().sort((a,b)=>Math.abs(b.effDiff)-Math.abs(a.effDiff));
-  sorted.slice(0,80).forEach(i=>{
+  const sorted = applySorting(counted, 'review', {code:i=>i.code,name:i=>i.name,exp:i=>i.exp||'',loc:i=>i.loc,systemQty:i=>i.systemQty,effQty:i=>i.effQty,effDiff:i=>i.effDiff});
+  const finalSorted = getSort('review').key ? sorted : counted.slice().sort((a,b)=>Math.abs(b.effDiff)-Math.abs(a.effDiff));
+  finalSorted.slice(0,80).forEach(i=>{
     const diffClass = i.effDiff>0?'pos':(i.effDiff<0?'neg':'');
     const tr = el('tr');
     const countCellNote = i.exceptionQty>0 ? `<div class="mini" style="color:var(--text-faint); margin-top:2px;">(${num(i.finalQty)} + ${num(i.exceptionQty)} จากตำแหน่งอื่น)</div>` : '';
@@ -2162,7 +2214,8 @@ async function renderReview(container){
     tb.appendChild(tr);
   });
   t.appendChild(tb); wrap.appendChild(t); container.appendChild(wrap);
-  if(sorted.length>80) container.appendChild(el('div','footer-note',`แสดง 80 จาก ${sorted.length} รายการ`));
+  wireSortableHeaders(t, render);
+  if(finalSorted.length>80) container.appendChild(el('div','footer-note',`แสดง 80 จาก ${finalSorted.length} รายการ`));
 
   const bar = el('div','step-actions');
   const canApprove = round.status==='counting' || round.status==='review';
@@ -2208,7 +2261,7 @@ async function renderVariance(container){
   container.appendChild(barPanel('มูลค่าผลต่างแยก Category', byCat, 'var(--red)'));
 
   container.appendChild(el('div','section-title','รายการผลต่างทั้งหมด<div class="line"></div>'));
-  container.appendChild(varianceTable(mismatched.slice().sort((a,b)=>Math.abs(b.effDiff*b.unitCost)-Math.abs(a.effDiff*a.unitCost))));
+  container.appendChild(varianceTable(mismatched.slice().sort((a,b)=>Math.abs(b.effDiff*b.unitCost)-Math.abs(a.effDiff*a.unitCost)), 'variance-full'));
 }
 
 // ============================================================
