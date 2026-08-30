@@ -637,18 +637,62 @@ td.mono{font-family:var(--mono); font-size:12px;}
 .print-header{display:none;}
 
 @media print{
-  .sidebar, .topbar, .identity-bar, .hazard, .toast-stack, .nav-overlay, .print-btn, .no-print{ display:none !important; }
+  .sidebar, .topbar, .identity-bar, .hazard, .toast-stack, .nav-overlay, .print-btn, .no-print, .login-screen, .loading-screen{ display:none !important; }
   .app{ display:block !important; }
   .main{ margin:0 !important; width:100% !important; }
-  .content{ padding:0 !important; }
-  body{ background:#fff !important; color:#111 !important; }
-  .panel, .kpi-card, .bucket, table{ break-inside: avoid; }
-  .section-title{ color:#111 !important; }
+  html, body{ background:#fff !important; color:#111 !important; }
+  *{ box-shadow:none !important; text-shadow:none !important; }
+
+  @page{ size:A4; margin:24mm 14mm 14mm 14mm; }
+
+  /* หัวกระดาษ: ปักไว้ตายตัวบนสุดของทุกหน้า (Chrome/Edge จะพิมพ์ position:fixed ซ้ำทุกหน้าอัตโนมัติ) */
   .print-header{
-    display:block !important; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #333;
+    display:block !important;
+    position:fixed; top:0; left:0; right:0;
+    background:#fff; padding-bottom:10px; margin-bottom:0 !important;
+    border-bottom:2px solid #333; z-index:999;
   }
-  .print-header .ph-title{ font-size:20px; font-weight:800; color:#111; }
-  .print-header .ph-sub{ font-size:12px; color:#555; margin-top:4px; }
+  .print-header .ph-title{ font-size:18px; font-weight:800; color:#111; }
+  .print-header .ph-sub{ font-size:11px; color:#555; margin-top:3px; }
+  /* เว้นที่ด้านบนของเนื้อหาให้พ้นหัวกระดาษ ไม่ให้บรรทัดแรกถูกบัง */
+  .content{ padding:0 !important; padding-top:6mm !important; }
+
+  /* พื้นหลังขาวล้วนทุก component ประหยัดหมึก + อ่านง่ายบนกระดาษ */
+  .panel, .kpi, .bucket, .table-wrap, table, .round-card, .count-item, .reason-manage-panel{
+    background:#fff !important; border:1px solid #d0d0d0 !important; color:#111 !important;
+  }
+  thead th{ background:#f2f2f2 !important; color:#333 !important; border-color:#ccc !important; }
+  tbody td{ border-color:#e2e2e2 !important; }
+  tbody tr:hover{ background:transparent !important; }
+  .badge-green{ background:#e6f7e9 !important; color:#1a7a34 !important; }
+  .badge-red{ background:#fdeceb !important; color:#b3261e !important; }
+  .badge-amber{ background:#fff4e0 !important; color:#8a5a00 !important; }
+  .badge-blue{ background:#e8f1ff !important; color:#1a56b0 !important; }
+  .badge-gray{ background:#eee !important; color:#444 !important; }
+  .bucket.urgent{ background:#fdeceb !important; }
+  .bucket.warn{ background:#fff4e0 !important; }
+  .bucket.watch{ background:#e8f1ff !important; }
+  .bucket.ok{ background:#e6f7e9 !important; }
+  .bucket .n, .bucket .lbl, .bucket .v{ color:#111 !important; }
+  .section-title{ color:#111 !important; }
+  .section-title .line{ background:#ccc !important; }
+  .kpi .value, .kpi .label{ color:#111 !important; }
+  .kpi.accent-amber .value{ color:#a15c00 !important; }
+  .kpi.accent-green .value{ color:#1a7a34 !important; }
+  .kpi.accent-red .value{ color:#b3261e !important; }
+  .kpi.accent-blue .value{ color:#1a56b0 !important; }
+  .mini, .text-faint, .text-dim, .footer-note{ color:#555 !important; }
+  .prodname{ color:#333 !important; }
+  .pos{ color:#1a7a34 !important; }
+  .neg{ color:#b3261e !important; }
+
+  /* จัดคอลัมน์ให้คงที่ตอนพิมพ์ ไม่ขึ้นกับความกว้าง viewport ของหน้าจอที่แสดงตอนกดพิมพ์ */
+  .kpi-grid{ grid-template-columns:repeat(3,1fr) !important; gap:8mm 6mm !important; }
+  .bucket-row{ grid-template-columns:repeat(5,1fr) !important; gap:4mm !important; }
+
+  /* กันการ์ด/แถวตารางถูกตัดขาดกลางคันระหว่างหน้า */
+  .panel, .kpi, .bucket, .round-card, .count-item, tr{ break-inside:avoid; }
+  .section-title{ break-after:avoid; }
 }
 </style>
 </head>
